@@ -1,6 +1,8 @@
 #encoding=utf8
 """
-werkzeug/local.py中LocalStack类出现 property类
+werkzeug/local.py
+LocalStack
+property
 可以参考
 https://docs.python.org/2/library/functions.html?highlight=property#property
 property的两种用法

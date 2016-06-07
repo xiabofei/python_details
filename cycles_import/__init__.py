@@ -14,6 +14,7 @@ import sys
 import importlib
 
 
+# 这个类本质是一个代理模式Proxy的延迟加载
 class OnDemandModule(types.ModuleType):
     def __getattr__(self, name):
         modulename = self._submodule_by_name.get(name)

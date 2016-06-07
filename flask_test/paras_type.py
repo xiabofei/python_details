@@ -1,7 +1,9 @@
 #encoding=utf8
 
 """
-werkzeug/local.py Local类中的__getattr__中用到的dict类型的名传递
+werkzeug/local.py 
+Local
+__getattr__中用到的dict类型的名传递
 (1) dict name是地址传递
 (2) list name也是地址传递
 (3) tuple中的内容不能修改 (新增加的知识)

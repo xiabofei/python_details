@@ -1,9 +1,9 @@
 #encoding=utf8
 
 """
-werkzeug/local.py里面Local类 试验其中的iter方法
-给某个类构造一个__iter__方法
-可以用for it in object这样的形式迭代
+werkzeug/local.py
+Local
+def __iter__
 """
 
 class Local(object):
