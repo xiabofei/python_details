@@ -20,6 +20,8 @@ class Test(object):
         print "override the __setattr__ method and call self.__setattr__(self, %s, %s)" % (name, val)
         object.__setattr__(self, name, val)
 
+from ipdb import set_trace as st
+st()
 t = Test('attr1','attr2')
 
 print "t.__attr1__ : %s" % t.__attr1__

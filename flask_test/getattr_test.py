@@ -7,6 +7,7 @@ def pop
 是返回的值还是引用
 getattr返回的是list本身的地址
 """
+from ipdb import set_trace
 
 class Test(object):
 
@@ -24,6 +25,7 @@ class Test(object):
         else:
             return stack.pop()
 
+set_trace()
 t = Test()
 t.stack.append(1)
 t.stack.append(2)
