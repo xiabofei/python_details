@@ -1,3 +1,4 @@
+#encoding=utf8
 """
 试验一下对象的"静态变量"
 """
@@ -7,4 +8,5 @@ class Test(object):
         self.var2 = 2
 
 print Test.var1
+print Test().var2
 print Test.var2
