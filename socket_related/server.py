@@ -25,7 +25,7 @@ if __name__ == '__main__':
     # 创建服务端监听socket
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     # 在bind前设置端口复用
-    server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    # server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     server_socket.bind((HOST, PORT))
     server_socket.listen(LISTEN)
     print 'Server listen in port %s ' % (PORT)
