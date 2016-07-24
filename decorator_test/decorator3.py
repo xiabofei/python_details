@@ -20,5 +20,5 @@ def printdebug(func):
 def login():
     print('in login')
 
-# login()
-printdebug(printdebug(login))() # 装饰了多层
+login()
+# printdebug(printdebug(login))() # 装饰了多层

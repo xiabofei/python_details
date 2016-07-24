@@ -28,7 +28,7 @@ def login():
 def logout():
     print('in logout:')
 
-st()
+# st()
 login()
 print('=======')
 logout()
