@@ -17,4 +17,5 @@ with test() as t:
     print("t is 1 ".format(t))
     raise NameError("hi NameError")
     # raise TypeError("hi TypeError")
+
 sys.exit()

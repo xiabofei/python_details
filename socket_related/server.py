@@ -7,6 +7,7 @@ http://www.cnblogs.com/hazir/p/python_chat_room.html
 import socket
 import sys
 import select
+from ipdb import set_trace as st
 
 # 服务端地址
 HOST = 'localhost'
@@ -32,6 +33,7 @@ if __name__ == '__main__':
     connected_clients.append(server_socket)
     while 1:
         r, w, e = select.select(connected_clients, [], [], 20)
+        st(context=17)
         for s in r:
             if s is server_socket:
                 conn, addr = server_socket.accept()

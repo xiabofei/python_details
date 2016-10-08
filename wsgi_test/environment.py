@@ -1,4 +1,7 @@
 #encoding=utf8
+"""
+用python自带的wsgi框架, 并返回环境变量信息
+"""
 from ipdb import set_trace as st
 from wsgiref import simple_server
 
