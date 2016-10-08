@@ -20,7 +20,9 @@ tasks = [
         }
 ]
 
-# 返回每个任务的完整URI
+# 把每个task的id属性替换为完整URI
+# 需要解析每个task的'id'属性
+# 再调用url_for函数来获得对应task的完整URI
 def make_public_task(task):
     new_task = {}
     for field in task:
