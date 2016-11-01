@@ -1,0 +1,9 @@
+b.c 2016-10-09 17:29:12,420 INFO norma info message for log1
+b.c 2016-10-09 17:29:12,420 WARNING warning message for log1:b.c
+b.c 2016-10-09 17:29:12,420 ERROR error message for log1:abcd
+b.c 2016-10-09 17:29:12,420 CRITICAL critical message for log1:not worked
+d.e 2016-10-09 17:29:12,420 DEBUG it is a debug message for log2
+d.e 2016-10-09 17:29:12,420 INFO norma info message for log2
+d.e 2016-10-09 17:29:12,420 WARNING warning message for log2
+d.e 2016-10-09 17:29:12,420 ERROR error:b.c
+d.e 2016-10-09 17:29:12,420 CRITICAL critical

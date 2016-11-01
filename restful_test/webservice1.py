@@ -2,6 +2,7 @@
 from flask import Flask, jsonify, abort, make_response, request, url_for
 from ipdb import set_trace as st
 
+print "__name__ : "+str(__name__)
 app = Flask(__name__)
 
 # tasks为可迭代的list
