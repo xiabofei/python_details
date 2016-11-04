@@ -1,0 +1,359 @@
+<?xml version="1.0" encoding="GB2312" standalone="yes" ?>
+<CDR>
+<section name="基本信息" code="" code-system="">
+<text>姓名：</text>
+<fieldelem name="姓名" code="" code-system="">张余良</fieldelem>
+<text>性别：</text>
+<fieldelem name="性别" code="" code-system="">男</fieldelem>
+<text>年龄：</text>
+<fieldelem name="年龄" code="" code-system="">62岁</fieldelem>
+<text>职业：</text>
+<fieldelem name="职业" code="" code-system="">国家公务员</fieldelem>
+<text>婚姻：</text>
+<fieldelem name="婚姻状况" code="" code-system="">已婚</fieldelem>
+<text>民族：</text>
+<fieldelem name="民族" code="" code-system="">汉族</fieldelem>
+<text>籍贯：</text>
+<fieldelem name="籍贯" code="" code-system="">河南省西平县</fieldelem>
+<text>联系电话：</text>
+<fieldelem name="电话" code="" code-system="">13803965448</fieldelem>
+<text>患者住址：</text>
+<fieldelem name="现住址" code="" code-system="">河南省西平县柏城镇东关居委会张庄19号</fieldelem>
+<text>工作单位与地址：</text>
+<fieldelem name="工作单位" code="" code-system="">柏城镇东关居委会</fieldelem>
+<text>身份证号：</text>
+<fieldelem name="身份证号" code="" code-system="">412824195402154711</fieldelem>
+<text>身份证件名称：</text>
+<text>身份证</text>
+<text>患者入院时间：</text>
+<fieldelem name="入院时间" code="" code-system="">2016-09-26 11:40</fieldelem>
+<text>病史陈述者：</text>
+<fieldelem name="病史陈述者" code="" code-system="">患者本人</fieldelem>
+<text>病史采集时间：</text>
+<fieldelem name="病史采集时间" code="" code-system="">2016-09-26 16:56</fieldelem>
+<text>入院时情况：</text>
+<fieldelem name="病史陈述者" code="" code-system="">一般</fieldelem>
+<text>联系人：</text>
+<fieldelem name="联系人姓名" code="" code-system="">陈风芩</fieldelem>
+<text>与患者关系：</text>
+<fieldelem name="与患者关系" code="" code-system="">配偶</fieldelem>
+<text>联系人电话：</text>
+<fieldelem name="联系人电话" code="" code-system="">13803965448</fieldelem>
+</section>
+<text>东院</text>
+<text>内分泌第{1}次入院记录</text>
+<section name="主诉" code="" code-system="">
+<text>主  诉：</text>
+<text>血糖升高、多饮、多尿20年</text>
+</section>
+<section name="现病史" code="" code-system="">
+<text>现病史：</text>
+<text>20年前出现多饮、多尿，检查发现血糖高</text>
+<text>，</text>
+<text>无多食、体重减轻</text>
+<text>，</text>
+<text>无头晕、胸闷胸痛</text>
+<text>，</text>
+<fieldelem name="鉴别诊断" code="" code-system="">无心慌、乏力、出汗、肢体无力</fieldelem>
+<text>，无长期激素应用史，</text>
+<text>就诊于</text>
+<text>当地医院诊为“2型糖尿病”，</text>
+<text>给予</text>
+<fieldelem name="治疗方案" code="" code-system="">拜糖平50mgTID,佳维乐50mgBID，长秀霖23IU QN</fieldelem>
+<text>，</text>
+<text>血糖控制不理想</text>
+<text>。病程中出现左下肢麻木，</text>
+<fieldelem name="鉴别诊断" code="" code-system="">无视物模糊、双下肢酸痛、活动后加重、休息后缓解</fieldelem>
+<text>，</text>
+<fieldelem name="鉴别诊断" code="" code-system="">无腹泻、便秘交替、双下肢浮肿、性功能下降、皮肤瘙痒、双下肢色素沉着</fieldelem>
+<text>。今</text>
+<text>为进一步治疗前来我院，门诊以“2型糖尿病”</text>
+<text>收住我科。</text>
+<text>自发病以来，神志清，精神可，饮食</text>
+<fieldelem name="食欲" code="" code-system="">正常</fieldelem>
+<text>，睡眠</text>
+<fieldelem name="睡眠" code="" code-system="">正常</fieldelem>
+<text>，大小便正常，体重</text>
+<text>无减轻</text>
+<text>。</text>
+<fieldelem name="心血管病史" code="" code-system="">“高血压”20年、“冠心病”3年</fieldelem>
+</section>
+<section name="既往史" code="" code-system="">
+<text>既往史：</text>
+<text>“高血压”20年，口服“倍他乐克缓释片”0.25片QD、“缬沙坦胶囊(代文)”80mg,口服、“尼福达”20mg，BID，口服，血压控制可；“冠心病”3年，口服“曲美他嗪片”20mg，“慢性乙型病毒性肝炎”40年，口服“恩替卡韦”0.5mg、“双环醇片”50mg。慢性胃炎13年。</text>
+<fieldelem name="传染病史" code="" code-system="">否认“结核”、“疟疾”病史</fieldelem>
+<text>，</text>
+<fieldelem name="预防接种史" code="" code-system="">预防接种史不详</fieldelem>
+<text>，</text>
+<fieldelem name="手术外伤史" code="" code-system="">否认手术、外伤、输血史、献血史</fieldelem>
+<text>，否认</text>
+<fieldelem name="过敏史" code="" code-system="">食物、药物过敏史</fieldelem>
+<text>。</text>
+</section>
+<section name="个人史" code="" code-system="">
+<text>个人史：</text>
+<text>生于原籍</text>
+<text>，久居</text>
+<text>本地</text>
+<text>，</text>
+<fieldelem name="疫区接触" code="" code-system="">无疫区、疫情、疫水接触史</fieldelem>
+<text>，</text>
+<fieldelem name="有毒物质接触史" code="" code-system="">无化学性物质、放射性物质、有毒物质接触史</fieldelem>
+<text>，</text>
+<fieldelem name="不良嗜好" code="" code-system="">无吸毒史</fieldelem>
+<text>，</text>
+<fieldelem name="吸烟饮酒史" code="" code-system="">无吸烟史</fieldelem>
+<text>，饮酒史30年，约800g/天。</text>
+<fieldelem name="冶游史" code="" code-system="">无冶游史</fieldelem>
+<text>。</text>
+</section>
+<section name="婚育史" code="" code-system="">
+<text>婚育史：</text>
+<text>27</text>
+<section name="婚姻史" code="" code-system="">
+<text>岁结婚，配偶</text>
+<fieldelem name="配偶" code="" code-system="">健康</fieldelem>
+<text>。</text>
+<text>育有1子、体健</text>
+</section>
+</section>
+<section name="家族史" code="" code-system="">
+<text>家族史：</text>
+<text>父母{已故}。4弟。1子，均体健。</text>
+<fieldelem name="家族史" code="" code-system="">否认家族性遗传病史</fieldelem>
+<text>。</text>
+<text>病人承诺及声明</text>
+<text>：以上信息由本人提供，如有此引发争议或与事实不符，不利后果本人自愿承担。</text>
+<text>病人或授权人签名：</text>
+<text>                            </text>
+<text>与本人关系：</text>
+</section>
+<section name="体格检查" code="" code-system="">
+<text>体格检查</text>
+<text>体温</text>
+<fieldelem name="体温" code="" code-system="">36.3</fieldelem>
+<text>℃</text>
+<text>脉搏</text>
+<fieldelem name="脉搏" code="" code-system="">80</fieldelem>
+<text>次／分</text>
+<text>呼吸</text>
+<fieldelem name="呼吸" code="" code-system="">20</fieldelem>
+<text>次／分</text>
+<text>血压</text>
+<fieldelem name="收缩压" code="" code-system="">143</fieldelem>
+<text>／</text>
+<fieldelem name="舒张压" code="" code-system="">81</fieldelem>
+<text>mmHg</text>
+<text>发育</text>
+<fieldelem name="发育" code="" code-system="">正常</fieldelem>
+<text>，</text>
+<text>营养</text>
+<fieldelem name="营养" code="" code-system="">良好</fieldelem>
+<text>，</text>
+<fieldelem name="面容" code="" code-system="">正常面容</fieldelem>
+<text>，</text>
+<text>表情</text>
+<fieldelem name="表情" code="" code-system="">自如</fieldelem>
+<text>，</text>
+<fieldelem name="体位" code="" code-system="">自主体位</fieldelem>
+<text>，</text>
+<text>神志</text>
+<fieldelem name="意识" code="" code-system="">清楚</fieldelem>
+<text>，</text>
+<text>查体</text>
+<fieldelem name="配合检查" code="" code-system="">合作</fieldelem>
+<text>；</text>
+<text>全身</text>
+<fieldelem name="色泽" code="" code-system="">皮肤粘膜无黄染</fieldelem>
+<text>，</text>
+<fieldelem name="皮肤异常" code="" code-system="">无皮疹 、皮下出血、皮下结节、瘢痕</fieldelem>
+<text>，</text>
+<fieldelem name="毛发分布" code="" code-system="">毛发分布正常</fieldelem>
+<text>，皮下</text>
+<fieldelem name="水肿" code="" code-system="">无水肿</fieldelem>
+<text>，</text>
+<fieldelem name="肝掌蜘蛛痣" code="" code-system="">无肝掌、蜘蛛痣</fieldelem>
+<text>，</text>
+<fieldelem name="全身浅表淋巴结" code="" code-system="">全身浅表淋巴结无肿大</fieldelem>
+<text>；</text>
+<text>头颅</text>
+<fieldelem name="头颅异常" code="" code-system="">无畸形、压痛、包块</fieldelem>
+<text>，</text>
+<fieldelem name="眼睑水肿" code="" code-system="">无眼睑水肿</fieldelem>
+<text>，</text>
+<text>结膜</text>
+<fieldelem name="结膜" code="" code-system="">正常</fieldelem>
+<text>，</text>
+<fieldelem name="眼球外形" code="" code-system="">眼球正常</fieldelem>
+<text>，巩膜</text>
+<fieldelem name="巩膜" code="" code-system="">无黄染</fieldelem>
+<text>，</text>
+<text>瞳孔</text>
+<fieldelem name="瞳孔" code="" code-system="">等大同圆</fieldelem>
+<text>，对光反射</text>
+<fieldelem name="对光反射" code="" code-system="">正常</fieldelem>
+<text>，</text>
+<text>外耳道</text>
+<fieldelem name="外耳道" code="" code-system="">无异常分泌物</fieldelem>
+<text>，</text>
+<fieldelem name="乳突压痛" code="" code-system="">乳突无压痛</fieldelem>
+<text>，</text>
+<fieldelem name="听力粗试障碍" code="" code-system="">无听力粗试障碍</fieldelem>
+<text>，</text>
+<text>嗅觉</text>
+<fieldelem name="嗅觉情况" code="" code-system="">正常</fieldelem>
+<text>，</text>
+<text>口唇</text>
+<fieldelem name="口唇" code="" code-system="">无发绀</fieldelem>
+<text>，</text>
+<text>口腔粘膜</text>
+<fieldelem name="口腔粘膜" code="" code-system="">正常</fieldelem>
+<text>，</text>
+<text>舌苔</text>
+<fieldelem name="舌苔" code="" code-system="">正常</fieldelem>
+<text>，</text>
+<text>伸舌</text>
+<fieldelem name="伸舌" code="" code-system="">无偏斜、震颤</fieldelem>
+<text>，</text>
+<text>齿龈</text>
+<fieldelem name="齿龈" code="" code-system="">正常</fieldelem>
+<text>，咽部粘膜</text>
+<fieldelem name="咽部粘膜" code="" code-system="">正常</fieldelem>
+<text>，</text>
+<text>扁桃体</text>
+<fieldelem name="扁桃体" code="" code-system="">无肿大</fieldelem>
+<text>；</text>
+<text>颈</text>
+<fieldelem name="颈" code="" code-system="">软</fieldelem>
+<fieldelem name="颈抵抗" code="" code-system="">无抵抗</fieldelem>
+<text>，</text>
+<text>颈动脉</text>
+<fieldelem name="颈动脉" code="" code-system="">搏动正常</fieldelem>
+<text>，颈静脉</text>
+<fieldelem name="颈静脉" code="" code-system="">正常</fieldelem>
+<text>，气管</text>
+<fieldelem name="气管" code="" code-system="">居中</fieldelem>
+<text>，肝颈静脉回流征</text>
+<fieldelem name="肝颈静脉回流征" code="" code-system="">阴性</fieldelem>
+<text>，</text>
+<text>甲状腺</text>
+<fieldelem name="甲状腺" code="" code-system="">正常</fieldelem>
+<text>，</text>
+<fieldelem name="甲状腺异常" code="" code-system="">无压痛、震颤、血管杂音</fieldelem>
+<text>；</text>
+<fieldelem name="胸廓" code="" code-system="">胸廓正常</fieldelem>
+<text>，</text>
+<fieldelem name="胸骨叩痛" code="" code-system="">胸骨无叩痛</fieldelem>
+<text>，</text>
+<text>呼吸运动</text>
+<fieldelem name="呼吸运动" code="" code-system="">正常</fieldelem>
+<text>，肋间隙</text>
+<fieldelem name="肋间隙" code="" code-system="">正常</fieldelem>
+<text>，语颤</text>
+<fieldelem name="语颤" code="" code-system="">正常</fieldelem>
+<text>；双肺</text>
+<text>叩诊</text>
+<fieldelem name="叩诊音" code="" code-system="">清音</fieldelem>
+<text>，呼吸</text>
+<fieldelem name="呼吸规整" code="" code-system="">规整</fieldelem>
+<text>，</text>
+<fieldelem name="呼吸音" code="" code-system="">呼吸音清晰</fieldelem>
+<text>，</text>
+<fieldelem name="胸膜摩擦音" code="" code-system="">无胸膜摩擦音</fieldelem>
+<text>；</text>
+<fieldelem name="心前区隆起" code="" code-system="">心前区无隆起</fieldelem>
+<text>，</text>
+<text>心尖搏动</text>
+<fieldelem name="心尖搏动" code="" code-system="">正常</fieldelem>
+<text>，</text>
+<text>心浊音界</text>
+<fieldelem name="相对浊音界" code="" code-system="">正常</fieldelem>
+<text>，</text>
+<text>心率</text>
+<fieldelem name="心率" code="" code-system="">80</fieldelem>
+<text>次/分，</text>
+<text>律</text>
+<fieldelem name="心律" code="" code-system="">齐</fieldelem>
+<text>，</text>
+<fieldelem name="杂音" code="" code-system="">各瓣膜听诊区未闻及杂音</fieldelem>
+<text>，</text>
+<fieldelem name="心包摩擦音" code="" code-system="">无心包摩擦音</fieldelem>
+<text>；腹</text>
+<fieldelem name="腹外形" code="" code-system="">平坦</fieldelem>
+<text>，</text>
+<fieldelem name="腹壁静脉曲张" code="" code-system="">无腹壁静脉曲张</fieldelem>
+<text>，</text>
+<text>腹部</text>
+<fieldelem name="腹部紧张度" code="" code-system="">柔软</fieldelem>
+<text>，</text>
+<fieldelem name="压痛反跳痛" code="" code-system="">无压痛、反跳痛</fieldelem>
+<text>，</text>
+<text>腹部</text>
+<fieldelem name="包块" code="" code-system="">无包块</fieldelem>
+<text>，</text>
+<text>肝脏</text>
+<fieldelem name="肝脏" code="" code-system="">未触及</fieldelem>
+<text>，脾脏</text>
+<fieldelem name="脾脏" code="" code-system="">未触及</fieldelem>
+<text>，</text>
+<text>Murphy氏征</text>
+<fieldelem name="Murphy征" code="" code-system="">阴性</fieldelem>
+<text>，肾脏</text>
+<fieldelem name="肾脏" code="" code-system="">无叩击痛</fieldelem>
+<text>，</text>
+<fieldelem name="腹部叩诊" code="" code-system="">无移动性浊音</fieldelem>
+<text>，肠鸣音</text>
+<fieldelem name="肠鸣音" code="" code-system="">正常</fieldelem>
+<text>，</text>
+<fieldelem name="肠鸣音频率" code="" code-system="">4</fieldelem>
+<text>次/分；</text>
+<text>肛门及外生殖器</text>
+<fieldelem name="肛门生殖器" code="" code-system="">未查</fieldelem>
+<text>；脊柱</text>
+<fieldelem name="脊柱" code="" code-system="">正常生理弯曲</fieldelem>
+<text>，</text>
+<text>四肢</text>
+<fieldelem name="四肢活动" code="" code-system="">活动自如</fieldelem>
+<text>，</text>
+<text>无畸形、下肢静脉曲张、杵状指（趾）</text>
+<text>，</text>
+<text>关节</text>
+<fieldelem name="关节形态" code="" code-system="">正常</fieldelem>
+<text>，双</text>
+<text>下肢</text>
+<fieldelem name="双下肢" code="" code-system="">无浮肿</fieldelem>
+<text>；四肢肌力、肌张力未见异常，双侧肱二、三头肌腱反射正常，双侧膝、跟腱反射正常，</text>
+<text>双侧</text>
+<text>Babinski征</text>
+<text>阴性</text>
+<text>。</text>
+<text>专 科 检 查</text>
+<text>甲状腺</text>
+<fieldelem name="甲状腺" code="" code-system="">无异常</fieldelem>
+<text>；</text>
+<text>双足</text>
+<text>足背动脉搏动</text>
+<text>可</text>
+<text>，</text>
+<text>双足</text>
+<text>皮温</text>
+<text>可</text>
+<text>。</text>
+</section>
+<section name="辅助检查" code="" code-system="">
+<text>辅 助 检 查</text>
+<text>随机血糖</text>
+<text>：10.2mmol/L。</text>
+</section>
+<section name="诊断" code="" code-system="">
+<section name="初步诊断" code="" code-system="">
+<text>初步诊断：</text>
+<fieldelem name="初步诊断1"  code="" code-system=""　　1.2型糖尿病</fieldelem>
+<fieldelem name="初步诊断2"  code="" code-system=""　　2.高血压病 很高危 1级</fieldelem>
+<fieldelem name="初步诊断3"  code="" code-system=""　　3.冠心病</fieldelem>
+<fieldelem name="初步诊断4"  code="" code-system=""　　4.慢性乙型病毒性肝炎</fieldelem>
+<fieldelem name="初步诊断5"  code="" code-system=""　　5.慢性胃炎</fieldelem>
+<fieldelem name="诊断签名1"  code="" code-system=""      主治医师：</fieldelem>
+</section>
+</section>
+</CDR>
