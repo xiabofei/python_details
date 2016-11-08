@@ -1,6 +1,7 @@
 #encoding=utf8
 # 看cch的代码中modeling/similarity.py中用到下面略不熟悉的用法
 # sklearn.tree.DecisionTreeClassifier.__init__.__func__
+# 参考资料 : http://stackoverflow.com/questions/12935241/python-call-instance-method-using-func
 # 结论 : 这种用法的目的是检验给某个class初始化的参数是否正确
 # 理解 : 这里__init__只是一个配角 其可以是class中定义的任何一个method
 #        这里主要理清几种调用形式:
