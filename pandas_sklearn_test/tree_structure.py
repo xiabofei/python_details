@@ -1,6 +1,9 @@
 #encoding=utf8
 """
 http://scikit-learn.org/stable/auto_examples/tree/plot_unveil_tree_structure.html
+关于如何理解每个leaf node中如何判断category的内容
+参考
+http://stackoverflow.com/questions/23557545/how-to-explain-the-decision-tree-from-scikit-learn
 """
 import numpy as np
 
@@ -8,6 +11,8 @@ from sklearn.model_selection import train_test_split
 from sklearn.datasets import load_iris
 from sklearn.tree import DecisionTreeClassifier
 
+# from ipdb import set_trace as st
+# st(context=21)
 iris = load_iris()
 X = iris.data
 y = iris.target
@@ -85,8 +90,6 @@ print()
 # method allows to retrieve the node indicator functions. A non zero element of
 # indicator matrix at the position (i,j) indicates that the sample i goes
 # through the node j.
-from ipdb import set_trace as st
-st(context=21)
 node_indicator = estimator.decision_path(X_test)
 # Similarly, we can also have the leaves ids reached by each sample.
 leave_id = estimator.apply(X_test)
