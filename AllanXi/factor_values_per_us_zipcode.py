@@ -125,6 +125,25 @@ def get_racial_homogeneity(zipcode):
                         ret[k] = v
     return json.dumps(ret, indent=4, sort_keys=True)
 
+def get_zero_vehicle_householdes(zipcode):
+    """Get zero vehicle from householdes
+    
+    Parameters
+    ----------
+    zipcode : str
+              The input zipcode
+
+    Returns
+    -------
+    list of tuple
+        input (B25044,94577) return 
+        [(2015,515,1201),...]
+        '2015' for 'Year 2015'
+        '515' for 'Owner occupied No vehicle avaiable'
+        '1201' for 'Renter occupied No vehicle avaiable'
+    """
+    pass
+
 if __name__ == '__main__':
     assert len(sys.argv)==2, "sys.args length %s not match"%(len(sys.argv))
     print get_population_density(sys.argv[1])
