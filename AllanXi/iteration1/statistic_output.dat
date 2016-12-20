@@ -1,0 +1,42 @@
+{
+    "000": {
+        "explaination": "HHMEMDRV:NO & DRVR_FLG:NO  & TRPHHVEH:NO", 
+        "sum": 0, 
+        "type": "Owner"
+    }, 
+    "001": {
+        "explaination": "HHMEMDRV:NO & DRVR_FLG:NO  & TRPHHVEH:YES", 
+        "sum": 0, 
+        "type": "Borrower"
+    }, 
+    "010": {
+        "explaination": "HHMEMDRV:NO & DRVR_FLG:YES  & TRPHHVEH:NO", 
+        "sum": 0, 
+        "type": "Owner"
+    }, 
+    "011": {
+        "explaination": "HHMEMDRV:NO & DRVR_FLG:YES  & TRPHHVEH:YES", 
+        "sum": 0, 
+        "type": "Owner"
+    }, 
+    "100": {
+        "explaination": "HHMEMDRV:YES & DRVR_FLG:NO  & TRPHHVEH:NO", 
+        "sum": 2792, 
+        "type": "Owner"
+    }, 
+    "101": {
+        "explaination": "HHMEMDRV:YES & DRVR_FLG:NO  & TRPHHVEH:YES", 
+        "sum": 211893, 
+        "type": "Borrower"
+    }, 
+    "110": {
+        "explaination": "HHMEMDRV:YES & DRVR_FLG:YES  & TRPHHVEH:NO", 
+        "sum": 5297, 
+        "type": "Borrower"
+    }, 
+    "111": {
+        "explaination": "HHMEMDRV:YES & DRVR_FLG:YES  & TRPHHVEH:YES", 
+        "sum": 241653, 
+        "type": "Owner"
+    }
+}
