@@ -6,9 +6,9 @@
 def login():
     print('in login')
 
-def printdebug(func):
+def print_debug(func):
     print('enter the login')
     func()
     print('exit the login')
 
-printdebug(login)
+print_debug(login)

@@ -4,7 +4,7 @@
 装饰有返回值的函数
 """
 
-def printdebug(func):
+def print_debug(func):
     def __decorator(user):
         print('enter the login')
         result = func(user)
@@ -12,7 +12,7 @@ def printdebug(func):
         return result
     return __decorator
 
-@printdebug
+@print_debug
 def login(user):
     print('in login:' + user)
     msg = "success" if user == "jatsz" else "fail"

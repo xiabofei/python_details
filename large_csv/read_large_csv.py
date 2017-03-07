@@ -1,9 +1,10 @@
 #encoding=utf8
 
 """
+http://pythondata.com/working-large-csv-files-python/
 how use pandas to load large csv file
-1. not that large needs distributed network
-2. too large for once loading in memory but can fit hard-disk
+    1. not that large needs distributed network
+    2. too large for once loading in memory but can fit hard-disk
 """
 import pandas as pd
 

@@ -2,17 +2,16 @@
 """
 被装饰的函数带带参数的情况
 """
-
 from ipdb import set_trace as st
 
-def printdebug(func):
+def print_debug(func):
     def __decorator(user):
         print('enter the login')
         func(user)
         print('exit the login')
     return __decorator
 
-@printdebug
+@print_debug
 def login(user):
     print('in login:' + user)
 
