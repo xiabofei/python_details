@@ -1,7 +1,7 @@
 #encoding=utf8
 """
 装饰器本身有参数
-""
+"""
 from ipdb import set_trace as st
 
 def printdebug_level(level):

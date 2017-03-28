@@ -5,9 +5,9 @@
 from ipdb import set_trace as st
 
 def print_debug(func):
-    def __decorator(user):
+    def __decorator(ser):
         print('enter the login')
-        func(user)
+        func(ser)
         print('exit the login')
     return __decorator
 
