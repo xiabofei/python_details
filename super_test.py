@@ -38,3 +38,4 @@ class A(type):
 
 A()
 
+print 'hhh'
