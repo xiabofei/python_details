@@ -9,6 +9,9 @@ http://www.liaoxuefeng.com/wiki/001374738125095c955c1e6d8bb493182103fac9270762a0
 可以尝试把__slots__这一行屏蔽掉 看运行结果不同
 """
 
+from ipdb import set_trace as st
+st(context=21)
+
 class Student(object):
     __slots__ = ('name', 'set_name', 'set_other')
     pass

@@ -9,6 +9,10 @@ property的两种用法
 """
 class C(object):
 
+    def __new__(cls):
+        print 'enter __new__ in class C'
+        return object.__new__(cls)
+
     def __init__(self):
         self.__private = 'private'
 
@@ -36,6 +40,8 @@ class C(object):
     def other(self):
         del self.__private
 
+from ipdb import set_trace as st
+st(context=21)
 
 c = C()
 c()

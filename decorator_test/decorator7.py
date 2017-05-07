@@ -14,8 +14,9 @@ def printdebug(func):
 
 def others(func):
     def __decorator():
-        print '***other decorator***'
+        print 'in others'
         func()
+        print 'out others'
     return __decorator
 
 @others
@@ -30,5 +31,3 @@ def logout():
 
 # st()
 login()
-print('=======')
-logout()
