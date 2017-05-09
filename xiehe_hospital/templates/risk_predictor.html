@@ -1,0 +1,123 @@
+{% extends "bootstrap/base.html" %}
+
+{% block title %} 宫颈癌临床结局风险预测 {% endblock %}
+
+{% block navbar %}
+    <div class="navbar navbar-inverse" role="navigation">
+        <div class="container">
+            <div class="navbar-header">
+                <a class="navbar-brand" href="#">宫颈癌临床结局风险预测</a>
+            </div>
+            <div class="navbar-collapse collapse">
+                <ul class="nav navbar-nav">
+                </ul>
+            </div>
+        </div>
+    </div>
+{% endblock %}
+
+{% block content %}
+    <div class="container">
+        {% block page_content %}
+            <div class="page-header">
+                <h3 class="">风险评估引擎</h3>
+            </div>
+            <div class="panel panel-default">
+                <div class="panel-heading">
+                    <h4 class="">复发转移风险概率</h4>
+                    <section id="skills-pgr">
+                        <div class="progress">
+                            <div class="progress-bar"  role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                                <p id="risk-probability">0</p>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+                <div class="panel-body" style="padding:5;border:0px;height:950px;overflow-y:auto" >
+                    {% if factor_category_list is defined %}
+                        {% for category in factor_category_list %}
+                            {{ factor_category(category) }}
+                        {% endfor %}
+                    {% endif %}
+                </div>
+            </div>
+        {% endblock %}
+    </div>
+{% endblock %}
+
+{% macro factor_category(category) -%}
+    {% set category_name = category['category_name'] %}
+    {% set factors = category['factors'] %}
+    <table class="table table-inverse">
+        <tbody>
+        <tr>
+            <th rowspan="2"><h4>{{ category_name }}</h4></th>
+            {% for factor in factors %}
+                <td id="{{ factor['factor_col'] }}">{{ factor['factor_name'] }}</td>
+            {% endfor %}
+        </tr>
+        <tr>
+            {% for factor in factors %}
+                <td id="{{ factor['factor_col'] }}_val">
+                    <select class="form-control" style="color: navy">
+                        {% if factor['opts']!=None %}
+                            {% for opt in factor['opts'] %}
+                                <option>{{ opt }}</option>
+                            {% endfor %}
+                        {% endif %}
+                    </select>
+                </td>
+            {% endfor %}
+        </tr>
+        </tbody>
+    </table>
+{%- endmacro %}
+
+
+{% block scripts %}
+{#    {{ super() }}#}
+    <script src={{ url_for('static', filename='jquery.js') }}></script>
+{#    <script src={{ url_for('static', filename='jquery.min.js') }}></script>#}
+    <script src={{ url_for('static', filename='jquery-ui.js') }}></script>
+    <script src={{ url_for('static', filename='bootstrap.min.js') }}></script>
+    <script type="text/javascript">
+        $('#risk-probability').ready(risk_predict);
+        $("[id$='_val']").change(risk_predict);
+        function collect_factor(){
+            var factors = {};
+            $("[id$='_val']").each(function(){
+                    factors[$(this).attr('id')] = $(this).children().first().attr('value')
+            });
+            return factors;
+        }
+        function risk_predict() {
+            $.ajax(
+                    {
+                        url: '{{ url_for('risk_predict') }}',
+                        type: 'get',
+                        data: collect_factor(),
+                        dataType: 'text',
+                        success: function(response)
+                        {
+                            collect_factor();
+                            var probability = Number(response);
+                            $('.progress-bar').each(function() {
+                                var bar_value = response+'%';
+                                if(probability<60){
+                                    $(this).attr('class', 'progress-bar progress-bar-info');
+                                }
+                                else if(probability<80){
+                                    $(this).attr('class', 'progress-bar progress-bar-warning');
+                                }
+                                else{
+                                    $(this).attr('class', 'progress-bar progress-bar-danger');
+                                }
+                                $(this).animate({ width: bar_value }, { duration: 200, easing: 'easeOutCirc' });
+                            });
+                            $("#risk-probability").text(response+'%');
+                        }
+                    }
+            );
+        }
+    </script>
+{% endblock %}
