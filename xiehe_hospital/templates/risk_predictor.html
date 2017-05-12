@@ -24,7 +24,7 @@
             </div>
             <div class="panel panel-default">
                 <div class="panel-heading">
-                    <h4 class="">复发转移风险概率</h4>
+                    <h4 class="">复发转移风险预测结果</h4>
                     <section id="skills-pgr">
                         <div class="progress">
                             <div class="progress-bar"  role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
@@ -33,7 +33,7 @@
                         </div>
                     </section>
                 </div>
-                <div class="panel-body" style="padding:5;border:0px;height:950px;overflow-y:auto" >
+                <div class="panel-body" style="padding:5;border:0px;height:550px;overflow-y:auto" >
                     {% if factor_category_list is defined %}
                         {% for category in factor_category_list %}
                             {{ factor_category(category) }}
@@ -59,13 +59,19 @@
         <tr>
             {% for factor in factors %}
                 <td id="{{ factor['factor_col'] }}_val">
-                    <select class="form-control" style="color: navy">
-                        {% if factor['opts']!=None %}
-                            {% for opt in factor['opts'] %}
-                                <option>{{ opt }}</option>
+                    {% if factor['opts']!=None %}
+                        <select class="form-control" style="color: navy">
+                            {% for i in range(factor['opts']|length) %}
+                                {% if (i + 1)==factor['default'] %}
+                                    <option selected="selected">{{ factor['opts'][i] }}</option>
+                                {% else %}
+                                    <option>{{ factor['opts'][i] }}</option>
+                                {% endif %}
                             {% endfor %}
-                        {% endif %}
-                    </select>
+                        </select>
+                    {% else %}
+                        <input type="text" class="form-control" value="{{ factor['default'] }}">
+                    {% endif %}
                 </td>
             {% endfor %}
         </tr>
@@ -75,9 +81,8 @@
 
 
 {% block scripts %}
-{#    {{ super() }}#}
+    {#    {{ super() }}#}
     <script src={{ url_for('static', filename='jquery.js') }}></script>
-{#    <script src={{ url_for('static', filename='jquery.min.js') }}></script>#}
     <script src={{ url_for('static', filename='jquery-ui.js') }}></script>
     <script src={{ url_for('static', filename='bootstrap.min.js') }}></script>
     <script type="text/javascript">
@@ -86,7 +91,7 @@
         function collect_factor(){
             var factors = {};
             $("[id$='_val']").each(function(){
-                    factors[$(this).attr('id')] = $(this).children().first().attr('value')
+                factors[$(this).attr('id').replace('_val','')] = $(this).children().first().attr('value')
             });
             return factors;
         }
@@ -103,10 +108,10 @@
                             var probability = Number(response);
                             $('.progress-bar').each(function() {
                                 var bar_value = response+'%';
-                                if(probability<60){
+                                if(probability<10){
                                     $(this).attr('class', 'progress-bar progress-bar-info');
                                 }
-                                else if(probability<80){
+                                else if(probability<20){
                                     $(this).attr('class', 'progress-bar progress-bar-warning');
                                 }
                                 else{

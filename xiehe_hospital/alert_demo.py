@@ -2,6 +2,9 @@
 from flask import Flask
 from flask_bootstrap import Bootstrap
 from flask import render_template, request
+from random import randint
+import requests
+import json
 
 from cervical_cancer import rating_engine
 
@@ -16,22 +19,18 @@ bootstrap = Bootstrap(app)
 @app.route('/')
 def index():
     paras = {}
-    # st(context=21)
     paras['factor_category_list'] = engine.produce_factor_category_list()
-    engine.calculate_risk()
     return render_template('risk_predictor.html', **paras)
 
 
 @app.route('/risk-predict', methods=['GET','POST'])
 def risk_predict():
-    # st(context=21)
-    factors = request.args
-    for k,v in factors.items():
-        print k,v
-    return str(engine.calculate_risk())
+    factors = engine.transform_factors(request.args)
+    risk_probability = float(requests.get('http://127.0.0.1:5002', params=factors).text)*100
+    return "{0:.2f}".format(risk_probability)
 
 
-engine = rating_engine({}, 'IT', './data/support/lr.pkl')
+engine = rating_engine({}, 'IT')
 
 if __name__ == '__main__':
-    app.run()
+    app.run(port=5001)
