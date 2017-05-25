@@ -24,6 +24,14 @@
             </div>
             <div class="panel panel-default">
                 <div class="panel-heading">
+                    <h4 class="">当前患者主要风险因子</h4>
+                </div>
+                <div class="panel-body">
+                    <canvas id="patient-risk-value-radar-chart" style="height:400px;width:content-box;"></canvas>
+                    {#                    <canvas id="patient-risk-value-radar-chart" style="height:500px;width: content-box;"></canvas>#}
+                    {#                    <canvas id="patient-risk-value-radar-chart" ></canvas>#}
+                </div>
+                <div class="panel-heading">
                     <h4 class="">复发转移风险预测结果</h4>
                     <section id="skills-pgr">
                         <div class="progress">
@@ -33,69 +41,248 @@
                         </div>
                     </section>
                 </div>
-                <div class="panel-body" style="padding:5;border:0px;height:550px;overflow-y:auto" >
+{#                <div class="panel-body" style="padding:5;border:0px;height:500px;overflow-y:auto" >#}
+                                    <div class="panel-body">
                     {% if factor_category_list is defined %}
                         {% for category in factor_category_list %}
                             {{ factor_category(category) }}
                         {% endfor %}
                     {% endif %}
                 </div>
+                <div class="panel-heading">
+                    <h4 class="">模型Postive风险因子权重</h4>
+                </div>
+                <div class="panel-body">
+                    <canvas id="patient-risk-weight-polar-chart-positive" style="height:300px;width:content-box;"></canvas>
+                </div>
+                <div class="panel-heading">
+                    <h4 class="">模型Negative风险因子权重</h4>
+                </div>
+                <div class="panel-body">
+                    <canvas id="patient-risk-weight-polar-chart-negative" style="height:300px;width:content-box;"></canvas>
+                </div>
             </div>
         {% endblock %}
     </div>
 {% endblock %}
-
-{% macro factor_category(category) -%}
-    {% set category_name = category['category_name'] %}
-    {% set factors = category['factors'] %}
-    <table class="table table-inverse">
-        <tbody>
-        <tr>
-            <th rowspan="2"><h4>{{ category_name }}</h4></th>
-            {% for factor in factors %}
-                <td id="{{ factor['factor_col'] }}">{{ factor['factor_name'] }}</td>
-            {% endfor %}
-        </tr>
-        <tr>
-            {% for factor in factors %}
-                <td id="{{ factor['factor_col'] }}_val">
-                    {% if factor['opts']!=None %}
-                        <select class="form-control" style="color: navy">
-                            {% for i in range(factor['opts']|length) %}
-                                {% if (i + 1)==factor['default'] %}
-                                    <option selected="selected">{{ factor['opts'][i] }}</option>
-                                {% else %}
-                                    <option>{{ factor['opts'][i] }}</option>
-                                {% endif %}
-                            {% endfor %}
-                        </select>
-                    {% else %}
-                        <input type="text" class="form-control" value="{{ factor['default'] }}">
-                    {% endif %}
-                </td>
-            {% endfor %}
-        </tr>
-        </tbody>
-    </table>
-{%- endmacro %}
-
 
 {% block scripts %}
     {#    {{ super() }}#}
     <script src={{ url_for('static', filename='jquery.js') }}></script>
     <script src={{ url_for('static', filename='jquery-ui.js') }}></script>
     <script src={{ url_for('static', filename='bootstrap.min.js') }}></script>
+    <script src={{ url_for('static', filename='Chart.js') }}></script>
     <script type="text/javascript">
+        function hexToRgba(hex, a) {
+            var shorthandRegex = /^#?([a-f\d])([a-f\d])([a-f\d])$/i;
+            hex = hex.replace(shorthandRegex, function(m, r, g, b) {
+                return r + r + g + g + b + b;
+            });
+            var result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+            return 'rgba('+parseInt(result[1], 16)+','+parseInt(result[2], 16)+','+parseInt(result[3], 16)+','+a+')';
+        }
+    </script>
+    <script type="text/javascript">
+        var nice_color_hex_list = [
+            '#ff7575','#ffbdbd','#636363', '#75ffff', '#ffc595', '#ffff80', '#088da5', '#ab5062',
+            '#ffa5be', '#e42f43', '#fbc6c8', '#33ffcc', '#ff80ff', '#dba5aa',
+            '#e96725','#f4c1c1',   '#abc7bf', '#80ffff', '#000080',
+             '#67b252', '#ffc0cd', '#ff8055', '#ff8080', '#9a2d2d',
+            '#ffc8dc', '#43a5cf', '#e6d6ff', '#73ffd1', '#80ff80', '#ffe0dc',
+            '#ffc8c8', '#e1c546', '#8affaa', '#27ffb8', '#810000', '#b0a39a',
+            '#ffe1e1', '#75ffba', '#f6c362', '#8080ff', '#131a54', '#295350'
+        ];
+        var nice_color_rgba_list = [];
+        var backgroundColor = [];
+        var borderColor = [];
+        var pointBackgroundColor = [];
+        var pointHoverBorderColor = [];
+        for (var i=0; i<nice_color_hex_list.length; i++){
+            backgroundColor.push(hexToRgba(nice_color_hex_list[i], 0.4));
+            borderColor.push(hexToRgba(nice_color_hex_list[i], 1));
+            pointBackgroundColor.push(hexToRgba(nice_color_hex_list[i], 1));
+            pointHoverBorderColor.push(hexToRgba(nice_color_hex_list[i], 0.2));
+        }
+        var pointBorderColor = ['#fff','#fff','#fff','#fff','#fff','#fff'];
+        var pointHoverBackgroundColor = ['#fff','#fff','#fff','#fff','#fff','#fff'];
+    </script>
+    <script type="text/javascript">
+        {% if risk_factor_radar_data is defined %}
+            var risk_factor_radar_data = {{ risk_factor_radar_data|safe }};
+            var ctxRadar = document.getElementById("patient-risk-value-radar-chart").getContext('2d');
+            var factorValueChart = new Chart(ctxRadar, {});
+            function update_patient_risk_factor_chart() {
+                factorValueChart.destroy();
+                var data_in_datasets_positive = [];
+                var labels_in_data_positive = [];
+                for (var i=0; i<risk_factor_radar_data.length; i++){
+                    labels_in_data_positive.push($('#'+risk_factor_radar_data[i]).siblings('th').text()+'--'+$('#'+risk_factor_radar_data[i]).text());
+                    data_in_datasets_positive.push($('#'+risk_factor_radar_data[i]+'_val').children().first().attr('value'));
+                }
+                var data = {
+                    'labels':labels_in_data_positive,
+                    'datasets':[
+                        {
+                            'label':'病人-样例1',
+                            'data':data_in_datasets_positive,
+                            'backgroundColor':backgroundColor[0],
+                            'borderColor':borderColor[0],
+                            'pointBackgroundColor':pointBackgroundColor[0],
+                            'pointBorderColor':pointBorderColor[0],
+                            'pointHoverBackgroundColor':pointHoverBackgroundColor[0],
+                            'pointHoverBorderColor':pointHoverBorderColor[0],
+                            'borderWidth':3
+                        }
+                    ]
+                };
+                var options = {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    legend: {
+                        position: 'left'
+                    },
+                    title: {
+                        display: false,
+                        position:'left',
+                        text: '患者主要风险因素雷达图',
+                        fontSize: 30
+                    },
+                    scale: {
+                        reverse: true,
+                        pointLabels:{
+                            fontSize: 15
+                        },
+                        ticks: {
+                            beginAtZero: true
+                        }
+                    }
+                };
+                factorValueChart = new Chart(ctxRadar, {
+                    type: 'radar',
+                    data: data,
+                    options: options
+                });
+            }
+        {% endif %}
+    </script>
+    <script type="text/javascript">
+        var feature_shown_in_polar = {{ feature_shown_in_polar|safe }};
+        var ctxPolarPositive = document.getElementById("patient-risk-weight-polar-chart-positive").getContext('2d');
+        var ctxPolarNegative = document.getElementById("patient-risk-weight-polar-chart-negative").getContext('2d');
+        var factorWeightChartPositive = new Chart(ctxPolarPositive, {});
+        var factorWeightChartNegative = new Chart(ctxPolarNegative, {});
+        function update_patient_risk_weight_chart() {
+            factorWeightChartPositive.destroy();
+            $.ajax(
+                    {
+                        url: '{{ url_for('model_feature_weight') }}',
+                        type: 'get',
+                        dataType: 'json',
+                        success: function(response)
+                        {
+                            var labels_in_data_positive = [];
+                            var labels_in_data_negative = [];
+                            var data_in_datasets_positive = [];
+                            var data_in_datasets_negative = [];
+                            var backgroundColor_in_datasets_positive = [];
+                            var backgroundColor_in_datasets_negative = [];
+                            var borderColor_in_datasets_positive = [];
+                            var borderColor_in_datasets_negative = [];
+                            var num_of_shown_feature = 0;
+                            for(var i=0; i<response.length; i++){
+                                if(feature_shown_in_polar.length==0 || $.inArray(response[i][0], feature_shown_in_polar)>=0){
+                                    if(response[i][1]['weight']>0){
+                                        labels_in_data_positive.push(response[i][1]['name']);
+                                        data_in_datasets_positive.push(response[i][1]['weight']);
+                                        backgroundColor_in_datasets_positive.push(backgroundColor[num_of_shown_feature]);
+                                        borderColor_in_datasets_positive.push(borderColor[num_of_shown_feature]);
+                                    }
+                                    else{
+                                        labels_in_data_negative.push(response[i][1]['name']);
+                                        data_in_datasets_negative.push(response[i][1]['weight']);
+                                        backgroundColor_in_datasets_negative.push(backgroundColor[num_of_shown_feature]);
+                                        borderColor_in_datasets_negative.push(borderColor[num_of_shown_feature]);
+                                    }
+                                    num_of_shown_feature += 1;
+                                }
+                            }
+                            var data_positive = {
+                                datasets: [
+                                    {
+                                        data: data_in_datasets_positive ,
+                                        backgroundColor:backgroundColor_in_datasets_positive,
+                                        borderColor:borderColor_in_datasets_positive,
+                                        label: 'Model Feature Weights'
+                                    }
+                                ],
+                                labels: labels_in_data_positive
+                            };
+                            var data_negative = {
+                                datasets: [
+                                    {
+                                        data: data_in_datasets_negative ,
+                                        backgroundColor:backgroundColor_in_datasets_negative,
+                                        borderColor:borderColor_in_datasets_negative,
+                                        label: 'Model Feature Weights'
+                                    }
+                                ],
+                                labels: labels_in_data_negative
+                            };
+                            var options_positive = {
+                                legend: {
+                                    labels:{fontSize:20},
+                                    position: 'left'
+                                },
+                                elements: {
+                                    arc: { borderColor: "#000000" }
+                                }
+                            };
+                            var options_negative = {
+                                scale: {
+                                    reverse: true,
+                                },
+                                legend: {
+                                    labels:{fontSize:20},
+                                    position: 'left'
+                                },
+                                elements: {
+                                    arc: { borderColor: "#000000" }
+                                }
+                            };
+                            factorWeightChartPositive = new Chart(ctxPolarPositive, {
+                                type: 'polarArea',
+                                data: data_positive,
+                                options: options_positive
+                            });
+                            factorWeightChartNegative = new Chart(ctxPolarNegative, {
+                                type: 'polarArea',
+                                data: data_negative,
+                                options: options_negative
+                            });
+                        }
+                    }
+            );
+        }
+    </script>
+    <script type="text/javascript">
+        function initChart(){
+            risk_predict();
+            update_patient_risk_weight_chart();
+        }
+        $(document).ready(initChart);
         $('#risk-probability').ready(risk_predict);
         $("[id$='_val']").change(risk_predict);
         function collect_factor(){
             var factors = {};
             $("[id$='_val']").each(function(){
-                factors[$(this).attr('id').replace('_val','')] = $(this).children().first().attr('value')
+                factors[$(this).attr('id').replace('_val','')] = $(this).find("option:selected").text();
+                if($(this).find("option:selected").text()==""){
+                    factors[$(this).attr('id').replace('_val','')] = $(this).children().first().attr('value');
+                }
             });
             return factors;
         }
-        function risk_predict() {
+        function risk_predict(event) {
             $.ajax(
                     {
                         url: '{{ url_for('risk_predict') }}',
@@ -120,9 +307,45 @@
                                 $(this).animate({ width: bar_value }, { duration: 200, easing: 'easeOutCirc' });
                             });
                             $("#risk-probability").text(response+'%');
+                            update_patient_risk_factor_chart();
                         }
                     }
             );
         }
     </script>
 {% endblock %}
+
+{% macro factor_category(category) -%}
+    {% set category_name = category['category_name'] %}
+    {% set factors = category['factors'] %}
+    <table class="table table-inverse">
+        <tbody>
+        <tr>
+            <th rowspan="2"><h4>{{ category_name }}</h4></th>
+            {% for factor in factors %}
+                <td id="{{ factor['factor_col'] }}">{{ factor['factor_name'] }}</td>
+            {% endfor %}
+        </tr>
+        <tr>
+            {% for factor in factors %}
+                <td id="{{ factor['factor_col'] }}_val">
+                    {% if factor['opts']!=None %}
+                        <select class="form-control" style="color: navy">
+                            {% for i in range(factor['opts']['text']|length) %}
+                                {% if (i + 1)==factor['default'] %}
+                                    <option selected="selected" value="{{ factor['opts']['value'][i] }}">{{ factor['opts']['text'][i] }}</option>
+                                {% else %}
+                                    <option value="{{ factor['opts']['value'][i] }}">{{ factor['opts']['text'][i] }}</option>
+                                {% endif %}
+                            {% endfor %}
+                        </select>
+                    {% else %}
+                        <input type="text" class="form-control" value="{{ factor['default'] }}">
+                    {% endif %}
+                </td>
+            {% endfor %}
+        </tr>
+        </tbody>
+    </table>
+{%- endmacro %}
+

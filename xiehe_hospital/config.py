@@ -13,6 +13,8 @@ FACTOR_DEFAULT_VALUE = 'factor_default_value'
 # clinical target related
 TARGET_FACTORS_GROUP = 'factors_group'
 TARGET_DESCRIPTION = 'target_description'
+TARGET_RISK_FACTOR_RADAR = 'target_risk_factor_radar'
+TARGET_RISK_FACTOR_POLAR = 'target_risk_factor_polar'
 # factor category name
 CATEGORY_NAME = {
     'FU_FAN_YING':u'副反应',

@@ -4,7 +4,7 @@ from config import FACTOR_DESCRIPTION, TRANSFORM_RELATION
 from config import RELATION_1, RELATION_2, RELATION_3, RELATION_4, RELATION_5
 from config import TARGET_DESCRIPTION, TARGET_FACTORS_GROUP
 from config import CATEGORY_NAME
-from config import FACTOR_DEFAULT_VALUE
+from config import FACTOR_DEFAULT_VALUE, TARGET_RISK_FACTOR_RADAR, TARGET_RISK_FACTOR_POLAR
 from pprint import pprint
 from collections import OrderedDict
 
@@ -189,7 +189,7 @@ class rating_engine(object):
             FACTOR_DEFAULT_VALUE: 1
         },
         'JF':{
-            FACTOR_DESCRIPTION: u'各种手术既往史',
+            FACTOR_DESCRIPTION: u'各类手术既往史',
             TRANSFORM_RELATION: RELATION_4,
             FACTOR_DEFAULT_VALUE: 1
         },
@@ -206,34 +206,64 @@ class rating_engine(object):
             TARGET_FACTORS_GROUP:OrderedDict([
                 (CATEGORY_NAME['CU_FEN_QI'],['IY']),
                 (CATEGORY_NAME['ZHONGLIU_BIAOJIWU'],['BK']),
-                (CATEGORY_NAME['ZHUAN_YI'],['IZ','JA']),
-                (CATEGORY_NAME['FANG_HUA_LIAO'],['DK','DS']),
+                (CATEGORY_NAME['ZHUAN_YI'],['IZ', 'JA']),
+                (CATEGORY_NAME['FANG_HUA_LIAO'],['DK', 'DS']),
                 (CATEGORY_NAME['FU_FAN_YING'],['P', 'Q', 'R', 'S', 'T', 'U', 'V']),
                 (CATEGORY_NAME['JI_WANG_SHI'],['JB', 'JC', 'JF', 'JG']),
                 (CATEGORY_NAME['XUE_YE_DU_XING'],['AE', 'AF', 'AG', 'AH', 'AK']),
                 (CATEGORY_NAME['XUE_CHANG_GUI'],['BD', 'BE', 'BF', 'BG', 'BH']),
                 (CATEGORY_NAME['GAN_SHEN_GONG'],['BI', 'BJ']),
                 (CATEGORY_NAME['GAN_RAN'],['BM', 'BN', 'BO', 'BP', 'BQ', 'BR', 'BS'])
-            ])
+            ]),
+            TARGET_RISK_FACTOR_RADAR:[
+                'DK', # 先期化疗
+                'IY', # 分期
+                'S',  # 恶心
+                'IZ', # 腹主动脉旁淋巴结转移
+                'BK', # SCC
+                'AG', # 血红蛋白毒性
+                'JA', # 盆腔淋巴结转移
+                # 'DS', # 放疗持续时间
+                'JF', # 各种手术既往史
+                'Q'   # 直肠炎
+            ],
+            TARGET_RISK_FACTOR_POLAR:[]
         },
         'IV': {
             TARGET_DESCRIPTION: u'有肿瘤残留',
-            TARGET_FACTORS_GROUP:{}
+            TARGET_FACTORS_GROUP:{},
+            TARGET_RISK_FACTOR_RADAR:[],
+            TARGET_RISK_FACTOR_POLAR:[]
         },
         'IW': {
             TARGET_DESCRIPTION: u'死亡',
-            TARGET_FACTORS_GROUP:{}
+            TARGET_FACTORS_GROUP:{},
+            TARGET_RISK_FACTOR_RADAR:[],
+            TARGET_RISK_FACTOR_POLAR:[]
         }
     }
 
     _addressed_relation_ship = False
+    _check_risk_radar_data = False
 
     def __new__(cls, factors, target):
+
         if cls._addressed_relation_ship==False:
             for k,v in cls._risk_factors.items():
                 v[TRANSFORM_RELATION] = \
                     OrderedDict(v[TRANSFORM_RELATION]) if v[TRANSFORM_RELATION] else v[TRANSFORM_RELATION]
             cls._addressed_relation_ship = True
+
+        if cls._check_risk_radar_data == False:
+            for k,v in cls._clinical_target.items():
+                all_columns = []
+                for columns in v[TARGET_FACTORS_GROUP].values():
+                    all_columns += columns
+                for column in v[TARGET_RISK_FACTOR_RADAR]:
+                    if column not in all_columns:
+                        raise Exception("column \"%s\" not in \"%s\" factor groups" % (column, k))
+            cls._check_risk_radar_data = True
+
         return object.__new__(cls, factors, target)
 
     def __init__(self, factors, target):
@@ -244,9 +274,14 @@ class rating_engine(object):
         if key=='target':
             assert value in ['IT','IV','IW'], 'clinical target "%s" not match' % (value)
             object.__setattr__(self, key, value)
-        if key=='predictor':
-            object.__setattr__(self, key, value)
 
+    def produce_risk_factor_radar_data(self):
+        """
+        All the risk factors that occurs in the
+        :return: list
+                 [ column1,column2,..., ]
+        """
+        return self._clinical_target[self.target][TARGET_RISK_FACTOR_RADAR]
 
     def produce_factor_category_list(self):
         """
@@ -271,7 +306,8 @@ class rating_engine(object):
         """
         ret = []
         def _get_factor_opts(transform_relation):
-            return transform_relation.keys() if isinstance(transform_relation, OrderedDict) else transform_relation
+            return { 'text':transform_relation.keys(),'value':transform_relation.values() } \
+                if isinstance(transform_relation, OrderedDict) else transform_relation
         for k,v in self._clinical_target[self.target][TARGET_FACTORS_GROUP].iteritems():
             factor_category = {}
             factor_category['category_name'] = k
