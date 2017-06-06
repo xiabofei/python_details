@@ -216,16 +216,17 @@ class rating_engine(object):
                 (CATEGORY_NAME['GAN_RAN'],['BM', 'BN', 'BO', 'BP', 'BQ', 'BR', 'BS'])
             ]),
             TARGET_RISK_FACTOR_RADAR:[
-                'DK', # 先期化疗
-                'IY', # 分期
-                'S',  # 恶心
-                'IZ', # 腹主动脉旁淋巴结转移
                 'BK', # SCC
-                'AG', # 血红蛋白毒性
-                'JA', # 盆腔淋巴结转移
+                'BP', # HbeAb
                 # 'DS', # 放疗持续时间
+                'IZ', # 腹主动脉旁淋巴结转移
+                'AG', # 血红蛋白毒性
                 'JF', # 各种手术既往史
-                'Q'   # 直肠炎
+                'IY', # 分期
+                'U',  # 腹痛
+                'S'  # 恶心
+                # 'V',  # 乏力
+                # 'Q'   # 直肠炎
             ],
             TARGET_RISK_FACTOR_POLAR:[]
         },

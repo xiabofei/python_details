@@ -28,4 +28,17 @@ CATEGORY_NAME = {
     'FANG_HUA_LIAO':u'放化疗',
     'JI_WANG_SHI':u'既往史'
 }
-
+# RANGE TAG
+VALUE_RANGE = {
+    'LOW':'L',
+    'MID':'M',
+    'HIGH':'H'
+}
+# CATEGORY TAG
+CAT_RANGE = {
+    'ZERO':'0',
+    'ONE':'1',
+    'TWO':'2',
+    'THREE':'3',
+    'FOUR':'4'
+}

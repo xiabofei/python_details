@@ -2,6 +2,8 @@
 
 {% block title %} 宫颈癌临床结局风险预测 {% endblock %}
 
+
+
 {% block navbar %}
     <div class="navbar navbar-inverse" role="navigation">
         <div class="container">
@@ -16,7 +18,14 @@
     </div>
 {% endblock %}
 
+
 {% block content %}
+{#    <header>#}
+{#        <div class="container">#}
+{#            <h1>One Page Wonder</h1>#}
+{#            <h2>Will Knock Your Socks Off</h2>#}
+{#        </div>#}
+{#    </header>#}
     <div class="container">
         {% block page_content %}
             <div class="page-header">
@@ -41,29 +50,30 @@
                         </div>
                     </section>
                 </div>
-{#                <div class="panel-body" style="padding:5;border:0px;height:500px;overflow-y:auto" >#}
-                                    <div class="panel-body">
+                <div class="panel-body" style="padding:5;border:0px;height:500px;overflow-y:auto" >
+{#                                    <div class="panel-body">#}
                     {% if factor_category_list is defined %}
                         {% for category in factor_category_list %}
                             {{ factor_category(category) }}
                         {% endfor %}
                     {% endif %}
                 </div>
-                <div class="panel-heading">
-                    <h4 class="">模型Postive风险因子权重</h4>
-                </div>
-                <div class="panel-body">
-                    <canvas id="patient-risk-weight-polar-chart-positive" style="height:300px;width:content-box;"></canvas>
-                </div>
-                <div class="panel-heading">
-                    <h4 class="">模型Negative风险因子权重</h4>
-                </div>
-                <div class="panel-body">
-                    <canvas id="patient-risk-weight-polar-chart-negative" style="height:300px;width:content-box;"></canvas>
-                </div>
+{#                <div class="panel-heading">#}
+{#                    <h4 class="">模型Postive风险因子权重</h4>#}
+{#                </div>#}
+{#                <div class="panel-body">#}
+{#                    <canvas id="patient-risk-weight-polar-chart-positive" style="height:300px;width:content-box;"></canvas>#}
+{#                </div>#}
+{#                <div class="panel-heading">#}
+{#                    <h4 class="">模型Negative风险因子权重</h4>#}
+{#                </div>#}
+{#                <div class="panel-body">#}
+{#                    <canvas id="patient-risk-weight-polar-chart-negative" style="height:300px;width:content-box;"></canvas>#}
+{#                </div>#}
             </div>
         {% endblock %}
     </div>
+
 {% endblock %}
 
 {% block scripts %}
@@ -166,108 +176,108 @@
         {% endif %}
     </script>
     <script type="text/javascript">
-        var feature_shown_in_polar = {{ feature_shown_in_polar|safe }};
-        var ctxPolarPositive = document.getElementById("patient-risk-weight-polar-chart-positive").getContext('2d');
-        var ctxPolarNegative = document.getElementById("patient-risk-weight-polar-chart-negative").getContext('2d');
-        var factorWeightChartPositive = new Chart(ctxPolarPositive, {});
-        var factorWeightChartNegative = new Chart(ctxPolarNegative, {});
-        function update_patient_risk_weight_chart() {
-            factorWeightChartPositive.destroy();
-            $.ajax(
-                    {
-                        url: '{{ url_for('model_feature_weight') }}',
-                        type: 'get',
-                        dataType: 'json',
-                        success: function(response)
-                        {
-                            var labels_in_data_positive = [];
-                            var labels_in_data_negative = [];
-                            var data_in_datasets_positive = [];
-                            var data_in_datasets_negative = [];
-                            var backgroundColor_in_datasets_positive = [];
-                            var backgroundColor_in_datasets_negative = [];
-                            var borderColor_in_datasets_positive = [];
-                            var borderColor_in_datasets_negative = [];
-                            var num_of_shown_feature = 0;
-                            for(var i=0; i<response.length; i++){
-                                if(feature_shown_in_polar.length==0 || $.inArray(response[i][0], feature_shown_in_polar)>=0){
-                                    if(response[i][1]['weight']>0){
-                                        labels_in_data_positive.push(response[i][1]['name']);
-                                        data_in_datasets_positive.push(response[i][1]['weight']);
-                                        backgroundColor_in_datasets_positive.push(backgroundColor[num_of_shown_feature]);
-                                        borderColor_in_datasets_positive.push(borderColor[num_of_shown_feature]);
-                                    }
-                                    else{
-                                        labels_in_data_negative.push(response[i][1]['name']);
-                                        data_in_datasets_negative.push(response[i][1]['weight']);
-                                        backgroundColor_in_datasets_negative.push(backgroundColor[num_of_shown_feature]);
-                                        borderColor_in_datasets_negative.push(borderColor[num_of_shown_feature]);
-                                    }
-                                    num_of_shown_feature += 1;
-                                }
-                            }
-                            var data_positive = {
-                                datasets: [
-                                    {
-                                        data: data_in_datasets_positive ,
-                                        backgroundColor:backgroundColor_in_datasets_positive,
-                                        borderColor:borderColor_in_datasets_positive,
-                                        label: 'Model Feature Weights'
-                                    }
-                                ],
-                                labels: labels_in_data_positive
-                            };
-                            var data_negative = {
-                                datasets: [
-                                    {
-                                        data: data_in_datasets_negative ,
-                                        backgroundColor:backgroundColor_in_datasets_negative,
-                                        borderColor:borderColor_in_datasets_negative,
-                                        label: 'Model Feature Weights'
-                                    }
-                                ],
-                                labels: labels_in_data_negative
-                            };
-                            var options_positive = {
-                                legend: {
-                                    labels:{fontSize:20},
-                                    position: 'left'
-                                },
-                                elements: {
-                                    arc: { borderColor: "#000000" }
-                                }
-                            };
-                            var options_negative = {
-                                scale: {
-                                    reverse: true,
-                                },
-                                legend: {
-                                    labels:{fontSize:20},
-                                    position: 'left'
-                                },
-                                elements: {
-                                    arc: { borderColor: "#000000" }
-                                }
-                            };
-                            factorWeightChartPositive = new Chart(ctxPolarPositive, {
-                                type: 'polarArea',
-                                data: data_positive,
-                                options: options_positive
-                            });
-                            factorWeightChartNegative = new Chart(ctxPolarNegative, {
-                                type: 'polarArea',
-                                data: data_negative,
-                                options: options_negative
-                            });
-                        }
-                    }
-            );
-        }
+{#        var feature_shown_in_polar = {{ feature_shown_in_polar|safe }};#}
+{#        var ctxPolarPositive = document.getElementById("patient-risk-weight-polar-chart-positive").getContext('2d');#}
+{#        var ctxPolarNegative = document.getElementById("patient-risk-weight-polar-chart-negative").getContext('2d');#}
+{#        var factorWeightChartPositive = new Chart(ctxPolarPositive, {});#}
+{#        var factorWeightChartNegative = new Chart(ctxPolarNegative, {});#}
+{#        function update_patient_risk_weight_chart() {#}
+{#            factorWeightChartPositive.destroy();#}
+{#            $.ajax(#}
+{#                    {#}
+{#                        url: '{{ url_for('model_feature_weight') }}',#}
+{#                        type: 'get',#}
+{#                        dataType: 'json',#}
+{#                        success: function(response)#}
+{#                        {#}
+{#                            var labels_in_data_positive = [];#}
+{#                            var labels_in_data_negative = [];#}
+{#                            var data_in_datasets_positive = [];#}
+{#                            var data_in_datasets_negative = [];#}
+{#                            var backgroundColor_in_datasets_positive = [];#}
+{#                            var backgroundColor_in_datasets_negative = [];#}
+{#                            var borderColor_in_datasets_positive = [];#}
+{#                            var borderColor_in_datasets_negative = [];#}
+{#                            var num_of_shown_feature = 0;#}
+{#                            for(var i=0; i<response.length; i++){#}
+{#                                if(feature_shown_in_polar.length==0 || $.inArray(response[i][0], feature_shown_in_polar)>=0){#}
+{#                                    if(response[i][1]['weight']>0){#}
+{#                                        labels_in_data_positive.push(response[i][1]['name']);#}
+{#                                        data_in_datasets_positive.push(response[i][1]['weight']);#}
+{#                                        backgroundColor_in_datasets_positive.push(backgroundColor[num_of_shown_feature]);#}
+{#                                        borderColor_in_datasets_positive.push(borderColor[num_of_shown_feature]);#}
+{#                                    }#}
+{#                                    else{#}
+{#                                        labels_in_data_negative.push(response[i][1]['name']);#}
+{#                                        data_in_datasets_negative.push(response[i][1]['weight']);#}
+{#                                        backgroundColor_in_datasets_negative.push(backgroundColor[num_of_shown_feature]);#}
+{#                                        borderColor_in_datasets_negative.push(borderColor[num_of_shown_feature]);#}
+{#                                    }#}
+{#                                    num_of_shown_feature += 1;#}
+{#                                }#}
+{#                            }#}
+{#                            var data_positive = {#}
+{#                                datasets: [#}
+{#                                    {#}
+{#                                        data: data_in_datasets_positive ,#}
+{#                                        backgroundColor:backgroundColor_in_datasets_positive,#}
+{#                                        borderColor:borderColor_in_datasets_positive,#}
+{#                                        label: 'Model Feature Weights'#}
+{#                                    }#}
+{#                                ],#}
+{#                                labels: labels_in_data_positive#}
+{#                            };#}
+{#                            var data_negative = {#}
+{#                                datasets: [#}
+{#                                    {#}
+{#                                        data: data_in_datasets_negative ,#}
+{#                                        backgroundColor:backgroundColor_in_datasets_negative,#}
+{#                                        borderColor:borderColor_in_datasets_negative,#}
+{#                                        label: 'Model Feature Weights'#}
+{#                                    }#}
+{#                                ],#}
+{#                                labels: labels_in_data_negative#}
+{#                            };#}
+{#                            var options_positive = {#}
+{#                                legend: {#}
+{#                                    labels:{fontSize:20},#}
+{#                                    position: 'left'#}
+{#                                },#}
+{#                                elements: {#}
+{#                                    arc: { borderColor: "#000000" }#}
+{#                                }#}
+{#                            };#}
+{#                            var options_negative = {#}
+{#                                scale: {#}
+{#                                    reverse: true,#}
+{#                                },#}
+{#                                legend: {#}
+{#                                    labels:{fontSize:20},#}
+{#                                    position: 'left'#}
+{#                                },#}
+{#                                elements: {#}
+{#                                    arc: { borderColor: "#000000" }#}
+{#                                }#}
+{#                            };#}
+{#                            factorWeightChartPositive = new Chart(ctxPolarPositive, {#}
+{#                                type: 'polarArea',#}
+{#                                data: data_positive,#}
+{#                                options: options_positive#}
+{#                            });#}
+{#                            factorWeightChartNegative = new Chart(ctxPolarNegative, {#}
+{#                                type: 'polarArea',#}
+{#                                data: data_negative,#}
+{#                                options: options_negative#}
+{#                            });#}
+{#                        }#}
+{#                    }#}
+{#            );#}
+{#        }#}
     </script>
     <script type="text/javascript">
         function initChart(){
             risk_predict();
-            update_patient_risk_weight_chart();
+{#            update_patient_risk_weight_chart();#}
         }
         $(document).ready(initChart);
         $('#risk-probability').ready(risk_predict);
