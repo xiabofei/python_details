@@ -1,8 +1,10 @@
 #encoding=utf8
+
 CHUNK_SIZE_THRESHOLD = 50000
 FEATURE_NAME_CONNECT = '_'
 MIN_FEATURE_CATEGORY_NUM = 1
 MAX_FEATURE_CATEGORY_NUM = 100
 
-FEATURE_PROCESSOR = 'feature_processor'
 ONE_HOT_ENCODER = 'one_hot_encoder'
+HML_CONVERT = 'hml_convert'
+NA_FILTER = 'na_filter'
