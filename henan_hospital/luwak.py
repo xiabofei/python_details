@@ -46,30 +46,11 @@ class LuwakFlow(object):
 
 
 if __name__ == '__main__':
-    raw_csv_file = './data/input/C13.csv'
+    raw_csv_file = './data/input/xiehe.csv'
     output_path = './data/output/'
-    henan_mining_flow = []
-    henan_mining_flow.append([
-        (
-            'two_to_one_convert', [('PECR_CheckDate', 'PAPAT_DE_Dob', DERIVE_AGE_FROM_DATE, 'DER_AGE')]
-        ),
-        (
-            'negative_or_positive_convert',
-            [('C-14_碳14吹气试验', 'one'), ('C-13_碳13吹气试验', 'two'), ('PAPAT_DE_SexCode', 'three')]
-        )
-    ])
-    henan_mining_flow.append([
-        (
-            'two_to_one_convert',
-            [('C-14_碳14吹气试验', 'C-13_碳13吹气试验', MERGE_POS_NEG, 'COMPREHENSIVE_NP')]
-        ),
-    ])
-    henan_mining_flow.append([
-        (
-            'remain_columns',
-            ['C-14_碳14吹气试验', 'C-13_碳13吹气试验', 'COMPREHENSIVE_NP', 'PAPAT_DE_SexCode']
-        ),
-    ])
-    lf = LuwakFlow(raw_csv_file, henan_mining_flow, output_path)
+    # from mining_flow import henan_mining_flow
+    # lf = LuwakFlow(raw_csv_file, henan_mining_flow, output_path)
+    from mining_flow import xiehe_mining_flow
+    lf = LuwakFlow(raw_csv_file, xiehe_mining_flow, output_path)
     lf.flow_execute_engine()
     print 'exit'

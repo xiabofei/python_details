@@ -37,6 +37,7 @@ class OneToOneConvert(object):
         :param _max: float, 检验值正常范围的上界
         :return: str, H or M or L
         """
+        input, _min, _max = float(input), float(_min), float(_max)
         if input < _min:
             ret = 'L'
         elif input >= _min and input <= _max:
@@ -210,7 +211,6 @@ class FeatureConvertProxy(object):
         self.convert_list = self.address_proxy_info()
 
     def address_proxy_info(self):
-
         def _create_convert(method_name, columns, last_file_flow):
             if method_name in OneToOneConvert.available_convert:
                 return OneToOneConvert(method_name, columns)
