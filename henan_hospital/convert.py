@@ -9,24 +9,29 @@ from utils import fill_na
 
 from ipdb import set_trace as st
 
+__all__ = [
+    'OneToOneConvert', 'NToOneConvert', 'OneHotConvert', 'RowFilterConvert', 'ColumnFilterConvert'
+]
 
-class OneToOneConvert(object):
 
-    available_convert = [
-        'H_M_L_convert',
-        'binary_convert',
-        'normalization_convert',
-        'negative_or_positive_convert'
-    ]
-
-    def __init__(self, method_name, columns):
+class BaseConvert(object):
+    def __init__(self, method_name, columns, last_file_flow):
         self.method = self.__getattribute__(method_name)
         self.columns = columns
+        self.last_file_flow = last_file_flow
+
+
+class OneToOneConvert(BaseConvert):
+    def __init__(self, method_name, columns, last_file_flow):
+        super(OneToOneConvert, self).__init__(method_name, columns, last_file_flow)
 
     def execute(self, df):
         # 强行要求第一个参数是要处理的列名 后面跟的是参数
         for column in self.columns:
-            df[column[0]] = df[column[0]].apply(self.method, args=tuple(column[1:]))
+            if len(column) > 1:
+                df[column[0]] = df[column[0]].apply(self.method, args=tuple(column[1:]))
+            else:
+                df[column[0]] = df[column[0]].apply(self.method)
         return df
 
     def H_M_L_convert(self, input, _min, _max):
@@ -44,6 +49,18 @@ class OneToOneConvert(object):
             ret = 'M'
         else:
             ret = 'H'
+        return ret
+
+    def binning_age(self, input):
+        input = float(input)
+        if input < 30:
+            ret = '0_30'
+        elif input < 60:
+            ret = '30_60'
+        elif input < 90:
+            ret = '60_90'
+        else:
+            ret = '90+'
         return ret
 
     def binary_convert(self, input, _one):
@@ -95,15 +112,10 @@ class OneToOneConvert(object):
         }
         return _strategy[strategy](input)
 
-class NToOneConvert(object):
 
-    available_convert = [
-        'two_to_one_convert'
-    ]
-
-    def __init__(self, method_name, columns):
-        self.method = self.__getattribute__(method_name)
-        self.columns = columns
+class NToOneConvert(BaseConvert):
+    def __init__(self, method_name, columns, last_file_flow):
+        super(NToOneConvert, self).__init__(method_name, columns, last_file_flow)
 
     def execute(self, df):
         # 强行要求最后一个参数是新的列名
@@ -128,14 +140,10 @@ class NToOneConvert(object):
             if df[col1] == NEGATIVE or df[col2] == NEGATIVE:
                 return NEGATIVE
 
-class OneHotConvert(object):
 
-    available_convert = [
-        'one_hot_convert'
-    ]
-
-    def __init__(self, input_path, columns):
-        self.column_labels = self.pre_process_label(input_path, columns)
+class OneHotConvert(BaseConvert):
+    def __init__(self, method_name, columns, last_file_flow):
+        self.column_labels = self.pre_process_label(last_file_flow, columns)
 
     def execute(self, df):
         return self.one_hot_convert(df)
@@ -168,15 +176,10 @@ class OneHotConvert(object):
                            for column in columns_to_encode for _class in column_le[column].classes_]
         return df.join(pd.DataFrame(data=data_derived, columns=columns_derived, index=df.index))
 
-class RowFilterConvert(object):
 
-    available_convert = [
-        'filter_row_contain_na_value'
-    ]
-
-    def __init__(self, method_name, columns):
-        self.method = self.__getattribute__(method_name)
-        self.columns = columns
+class RowFilterConvert(BaseConvert):
+    def __init__(self, method_name, columns, last_file_flow):
+        super(RowFilterConvert, self).__init__(method_name, columns, last_file_flow)
 
     def execute(self, df):
         return self.method(df, self.columns)
@@ -186,15 +189,10 @@ class RowFilterConvert(object):
         _df.dropna(axis=0, inplace=True)
         return df.ix[_df.index, :]
 
-class ColumnFilterConvert(object):
 
-    available_convert = [
-        'remain_columns'
-    ]
-
-    def __init__(self, method_name, columns):
-        self.method = self.__getattribute__(method_name)
-        self.columns = columns
+class ColumnFilterConvert(BaseConvert):
+    def __init__(self, method_name, columns, last_file_flow):
+        super(ColumnFilterConvert, self).__init__(method_name, columns, last_file_flow)
 
     def execute(self, df):
         return self.method(df, self.columns)
@@ -203,36 +201,24 @@ class ColumnFilterConvert(object):
         return df[columns]
 
 
-
-class FeatureConvertProxy(object):
-    def __init__(self, last_flow_file, proxy_info):
+class FeatureConvertFactory(object):
+    def __init__(self, last_flow_file, convert_info):
         self.last_flow_file = last_flow_file
-        self.proxy_info = proxy_info
-        self.convert_list = self.address_proxy_info()
+        self.convert_info = convert_info
+        self.convert_list = self.get_convert_list()
 
-    def address_proxy_info(self):
-        def _create_convert(method_name, columns, last_file_flow):
-            if method_name in OneToOneConvert.available_convert:
-                return OneToOneConvert(method_name, columns)
-            elif method_name in NToOneConvert.available_convert:
-                return NToOneConvert(method_name, columns)
-            elif method_name in OneHotConvert.available_convert:
-                return OneHotConvert(last_file_flow, columns)
-            elif method_name in  RowFilterConvert.available_convert:
-                return RowFilterConvert(method_name, columns)
-            elif method_name in ColumnFilterConvert.available_convert:
-                return ColumnFilterConvert(method_name, columns)
-            else:
-                raise TypeError('create convert error')
+    def get_convert_list(self):
+
+        def _get_convert(class_method, columns, last_file_flow):
+            return class_method.im_class(class_method.im_func.func_name, columns, last_file_flow)
 
         convert_list = []
-        for info in self.proxy_info:
+        for info in self.convert_info:
             _convert, _args = info[0], info[1]
-            convert_list.append(_create_convert(_convert, _args, self.last_flow_file))
+            convert_list.append(_get_convert(_convert, _args, self.last_flow_file))
         return convert_list
 
     def execute_all(self, df):
         for convert in self.convert_list:
             df = convert.execute(df)
         return df
-

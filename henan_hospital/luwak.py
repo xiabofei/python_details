@@ -1,6 +1,6 @@
 # encoding=utf8
 from config import *
-from convert import FeatureConvertProxy
+from convert import FeatureConvertFactory
 import os
 from csv_io import IO
 
@@ -12,6 +12,11 @@ class LuwakFlow(object):
         self.output_path = output_path
 
     def __setattr__(self, key, value):
+        if key == 'raw_csv_file':
+            if os.path.isfile(value):
+                object.__setattr__(self, key, value)
+            else:
+                raise IOError("file \'%s\' not found" % value)
         if key == 'mining_flow':
             if isinstance(value, list):
                 object.__setattr__(self, key, value)
@@ -36,11 +41,11 @@ class LuwakFlow(object):
         output_path = self.output_path + self._flow_file_name(index)
         if os.path.isfile(output_path):
             os.remove(output_path)
-        fc_proxy = FeatureConvertProxy(last_flow_file, flow)
+        fc_factory = FeatureConvertFactory(last_flow_file, flow)
         with open(output_path, 'a') as f_output:
             _header = True
             for df in IO.read_from_csv(last_flow_file):
-                df = fc_proxy.execute_all(df)
+                df = fc_factory.execute_all(df)
                 IO.write_to_csv(df, f_output, header=_header)
                 _header = False
 
@@ -51,6 +56,7 @@ if __name__ == '__main__':
     # from mining_flow import henan_mining_flow
     # lf = LuwakFlow(raw_csv_file, henan_mining_flow, output_path)
     from mining_flow import xiehe_mining_flow
+
     lf = LuwakFlow(raw_csv_file, xiehe_mining_flow, output_path)
     lf.flow_execute_engine()
     print 'exit'
