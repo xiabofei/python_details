@@ -4,7 +4,7 @@ from config import *
 from sklearn.preprocessing import LabelEncoder, OneHotEncoder
 from collections import defaultdict
 import pandas as pd
-from csv_io import IO
+from eat_io import IO
 from utils import fill_na
 
 from ipdb import set_trace as st
@@ -28,11 +28,14 @@ class OneToOneConvert(BaseConvert):
     def execute(self, df):
         # 强行要求第一个参数是要处理的列名 后面跟的是参数
         for column in self.columns:
-            if len(column) > 1:
+            if isinstance(column, tuple) and len(column) > 1:
                 df[column[0]] = df[column[0]].apply(self.method, args=tuple(column[1:]))
             else:
-                df[column[0]] = df[column[0]].apply(self.method)
+                df[column] = df[column].apply(self.method)
         return df
+
+    def plus_one(self, input):
+        return float(input) + 1
 
     def H_M_L_convert(self, input, _min, _max):
         """
@@ -51,17 +54,17 @@ class OneToOneConvert(BaseConvert):
             ret = 'H'
         return ret
 
-    def binning_age(self, input):
-        input = float(input)
-        if input < 30:
-            ret = '0_30'
-        elif input < 60:
-            ret = '30_60'
-        elif input < 90:
-            ret = '60_90'
+    def binning_numeric(self, input, _min, _max, gap):
+        input, _min, _max, gap = float(input), int(_min), int(_max), int(gap)
+        if input <= _min:
+            return '<' + str(_min)
+        elif input >= _max:
+            return '>' + str(_max)
         else:
-            ret = '90+'
-        return ret
+            for i in range(_min + gap, _max, gap):
+                if input <= i:
+                    return ''.join([str(i - gap), '_', str(i)])
+            return ''.join([str(_max - gap), '_', str(_max)])
 
     def binary_convert(self, input, _one):
         """
@@ -118,27 +121,34 @@ class NToOneConvert(BaseConvert):
         super(NToOneConvert, self).__init__(method_name, columns, last_file_flow)
 
     def execute(self, df):
-        # 强行要求最后一个参数是新的列名
+        # 这个地方 如果给对象增加一个df属性 会不会单开一部分内容 因为df是比较大的数
+        self.df = df
         for column in self.columns:
-            df[column[-1]] = df.apply(self.method, args=tuple(column[:-1]), axis=1)
+            derived_col_name, args = column[-1], column[:-1]
+            df[derived_col_name] = self.method(*args)
         return df
 
-    def two_to_one_convert(self, df, col1, col2, action_type):
-        if action_type not in ACTION_TYPE:
-            raise ValueError("action type not valid")
-        if action_type == PLUS:
-            return float(df[col1]) + float(df[col2])
-        if action_type == MINUS:
-            return float(df[col1]) - float(df[col2])
-        if action_type == MULTIPLY:
-            return float(df[col1]) * float(df[col2])
-        if action_type == DERIVE_AGE_FROM_DATE:
-            return int(df[col1].split("-")[0]) - int(df[col2].split("-")[0])
-        if action_type == MERGE_POS_NEG:
-            if df[col1] == POSITIVE or df[col2] == POSITIVE:
-                return POSITIVE
-            if df[col1] == NEGATIVE or df[col2] == NEGATIVE:
-                return NEGATIVE
+    def plus(self, col1, col2):
+        return self.df[col1].astype('float') + self.df[col2].astype('float')
+
+    def minus(self, col1, col2):
+        return self.df[col1].astype('float') - self.df[col2].astype('float')
+
+    def derive_age_from_date(self, col1, col2):
+        return self.df[col1].apply(lambda x: x.split('-')[0]).astype('int16') - \
+               self.df[col2].apply(lambda x: x.split('-')[0]).astype('int16')
+
+    def merge_positive_negative(self, col1, col2):
+
+        if self.df[col1] == POSITIVE or self.df[col2] == POSITIVE:
+            return POSITIVE
+        if self.df[col1] == NEGATIVE or self.df[col2] == NEGATIVE:
+            return NEGATIVE
+
+    def find_largest(self, col1, col2, col3):
+        self.df[col1], self.df[col2], self.df[col3] = \
+            self.df[col1].astype('float'), self.df[col2].astype('float'), self.df[col3].astype('float')
+        return self.df.apply(lambda d: max(d[col1], d[col2], d[col3]), axis=1)
 
 
 class OneHotConvert(BaseConvert):
@@ -172,6 +182,7 @@ class OneHotConvert(BaseConvert):
         _n_values = [len(self.column_labels[column].keys()) for column in columns_to_encode]
         ohe = OneHotEncoder(n_values=_n_values)
         data_derived = ohe.fit_transform(df[columns_to_encode]).toarray().astype('float32')
+        df.drop(columns_to_encode, axis=1, inplace=True)
         columns_derived = [FEATURE_NAME_CONNECT.join([column, str(_class)])
                            for column in columns_to_encode for _class in column_le[column].classes_]
         return df.join(pd.DataFrame(data=data_derived, columns=columns_derived, index=df.index))

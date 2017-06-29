@@ -2,14 +2,14 @@
 from config import *
 from convert import FeatureConvertFactory
 import os
-from csv_io import IO
+from eat_io import IO
 
 
 class LuwakFlow(object):
-    def __init__(self, raw_csv_file, mining_flow, output_path):
-        self.raw_csv_file = raw_csv_file
-        self.mining_flow = mining_flow
-        self.output_path = output_path
+    def __init__(self, luwak_feed):
+        self.raw_csv_file = luwak_feed['raw_csv_file']
+        self.output_path = luwak_feed['output_path']
+        self.mining_flow = luwak_feed['flow']
 
     def __setattr__(self, key, value):
         if key == 'raw_csv_file':
@@ -51,12 +51,8 @@ class LuwakFlow(object):
 
 
 if __name__ == '__main__':
-    raw_csv_file = './data/input/xiehe.csv'
-    output_path = './data/output/'
-    # from mining_flow import henan_mining_flow
-    # lf = LuwakFlow(raw_csv_file, henan_mining_flow, output_path)
-    from mining_flow import xiehe_mining_flow
-
-    lf = LuwakFlow(raw_csv_file, xiehe_mining_flow, output_path)
+    from feed import henan_luwak_feed
+    from feed import xiehe_luwak_feed
+    lf = LuwakFlow(henan_luwak_feed)
     lf.flow_execute_engine()
     print 'exit'
