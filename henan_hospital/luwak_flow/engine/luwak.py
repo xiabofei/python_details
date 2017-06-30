@@ -1,8 +1,8 @@
 # encoding=utf8
-from config import *
-from convert import FeatureConvertFactory
+
 import os
-from eat_io import IO
+from luwak_flow.convert.feature_convert import FeatureConvertFactory
+from luwak_flow.utils.luwak_io import IO
 
 
 class LuwakFlow(object):
@@ -48,12 +48,3 @@ class LuwakFlow(object):
                 df = fc_factory.execute_all(df)
                 IO.write_to_csv(df, f_output, header=_header)
                 _header = False
-
-
-if __name__ == '__main__':
-    from feed import henan_luwak_feed
-    # from feed import xiehe_luwak_feed
-    from feed import mri_luwak_feed
-    lf = LuwakFlow(mri_luwak_feed)
-    lf.flow_execute_engine()
-    print 'exit'

@@ -1,11 +1,11 @@
 # encoding=utf8
 
-from config import *
+from luwak_flow.config import *
 from sklearn.preprocessing import LabelEncoder, OneHotEncoder
 from collections import defaultdict
 import pandas as pd
-from eat_io import IO
-from utils import fill_na
+from luwak_flow.utils.luwak_io import IO
+from luwak_flow.utils.general import fill_na
 
 from ipdb import set_trace as st
 

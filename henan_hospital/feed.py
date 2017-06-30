@@ -1,5 +1,10 @@
 # encoding=utf8
-from convert import ColumnFilterConvert, RowFilterConvert, OneToOneConvert, OneHotConvert, NToOneConvert
+from luwak_flow.convert.feature_convert import ColumnFilterConvert
+from luwak_flow.convert.feature_convert import RowFilterConvert
+from luwak_flow.convert.feature_convert import OneToOneConvert
+from luwak_flow.convert.feature_convert import OneHotConvert
+from luwak_flow.convert.feature_convert import NToOneConvert
+from luwak_flow.engine.luwak import LuwakFlow
 
 """
 每个flow参数如何定义:
@@ -8,8 +13,8 @@ from convert import ColumnFilterConvert, RowFilterConvert, OneToOneConvert, OneH
 """
 
 xiehe_luwak_feed = {
-    'raw_csv_file': '../data/input/xiehe.csv',
-    'output_path': '../data/output/',
+    'raw_csv_file': './data/input/xiehe.csv',
+    'output_path': './data/output/',
     'flow': []
 }
 xiehe_luwak_feed['flow'].append([
@@ -68,8 +73,8 @@ xiehe_luwak_feed['flow'].append([
 ])
 
 henan_luwak_feed = {
-    'raw_csv_file': '../data/input/tijian.csv',
-    'output_path': '../data/output/',
+    'raw_csv_file': './data/input/tijian.csv',
+    'output_path': './data/output/',
     'flow': []
 }
 henan_luwak_feed['flow'].append([
@@ -127,3 +132,26 @@ mri_luwak_feed['flow'].append([
         ['ResultDescExResult']
     )
 ])
+
+c13_luwak_feed = {
+    'raw_csv_file': './data/input/C13_data5.csv',
+    'output_path': './data/output/',
+    'flow': []
+}
+c13_luwak_feed['flow'].append([
+    (
+        OneToOneConvert.binning_numeric,
+        [ ('Age',10,100,10) ]
+    ),
+])
+
+c13_luwak_feed['flow'].append([
+    (
+        OneHotConvert.one_hot_convert,
+        [ 'Age']
+    ),
+])
+
+if __name__ == '__main__':
+    lf = LuwakFlow(c13_luwak_feed)
+    lf.flow_execute_engine()
