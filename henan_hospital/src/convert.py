@@ -37,6 +37,22 @@ class OneToOneConvert(BaseConvert):
     def plus_one(self, input):
         return float(input) + 1
 
+    def transform_punctuation(self, input):
+        _chinese_english = [
+            ('，', ','),
+            ('、', ','),
+            ('（', '('),
+            ('）', ')'),
+            ('。', '.'),
+            ('；', ';'),
+            ('：', ':'),
+            ('“', '"'),
+            ("”", '"')
+        ]
+        for i in _chinese_english:
+            input = input.replace(i[0], i[1])
+        return input
+
     def H_M_L_convert(self, input, _min, _max):
         """
         根据检验项目的正常值区间(如'白细胞') 并将该检验项目划分为[高 正常 低]离散值 并编码为[H M L]
@@ -121,7 +137,6 @@ class NToOneConvert(BaseConvert):
         super(NToOneConvert, self).__init__(method_name, columns, last_file_flow)
 
     def execute(self, df):
-        # 这个地方 如果给对象增加一个df属性 会不会单开一部分内容 因为df是比较大的数
         self.df = df
         for column in self.columns:
             derived_col_name, args = column[-1], column[:-1]

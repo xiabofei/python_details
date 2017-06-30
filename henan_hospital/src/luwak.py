@@ -52,7 +52,8 @@ class LuwakFlow(object):
 
 if __name__ == '__main__':
     from feed import henan_luwak_feed
-    from feed import xiehe_luwak_feed
-    lf = LuwakFlow(henan_luwak_feed)
+    # from feed import xiehe_luwak_feed
+    from feed import mri_luwak_feed
+    lf = LuwakFlow(mri_luwak_feed)
     lf.flow_execute_engine()
     print 'exit'

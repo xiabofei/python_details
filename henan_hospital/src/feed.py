@@ -8,14 +8,14 @@ from convert import ColumnFilterConvert, RowFilterConvert, OneToOneConvert, OneH
 """
 
 xiehe_luwak_feed = {
-    'raw_csv_file': './data/input/xiehe.csv',
-    'output_path': './data/output/',
+    'raw_csv_file': '../data/input/xiehe.csv',
+    'output_path': '../data/output/',
     'flow': []
 }
 xiehe_luwak_feed['flow'].append([
     (
         ColumnFilterConvert.remain_columns,
-        ['AA','AB','AC', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'AE', 'AF', 'AG', 'AH', 'AK',
+        ['AA', 'AB', 'AC', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'AE', 'AF', 'AG', 'AH', 'AK',
          'BD', 'BE', 'BF', 'BG', 'BH', 'BI', 'BJ', 'BK', 'BN', 'BP', 'BQ',
          'DS', 'IY', 'IZ', 'JA', 'JB', 'JC', 'JF']
     ),
@@ -58,7 +58,7 @@ xiehe_luwak_feed['flow'].append([
     (
         NToOneConvert.find_largest,
         [
-            ('AA','AB','AC','AA_AB_AC')
+            ('AA', 'AB', 'AC', 'AA_AB_AC')
         ]
     ),
     (
@@ -68,8 +68,8 @@ xiehe_luwak_feed['flow'].append([
 ])
 
 henan_luwak_feed = {
-    'raw_csv_file': './data/input/tijian.csv',
-    'output_path': './data/output/',
+    'raw_csv_file': '../data/input/tijian.csv',
+    'output_path': '../data/output/',
     'flow': []
 }
 henan_luwak_feed['flow'].append([
@@ -91,4 +91,39 @@ henan_luwak_feed['flow'].append([
         OneHotConvert.one_hot_convert,
         ['PAPAT_DE_SexCode']
     ),
+])
+
+mri_luwak_feed = {
+    'raw_csv_file': '../data/input/MRI.csv',
+    'output_path': '../data/output/',
+    'flow': []
+}
+mri_luwak_feed['flow'].append([
+    (
+        ColumnFilterConvert.remain_columns,
+        [
+            'PAADM_RowID',
+            # 'PAPMI_No',
+            # 'PAPMI_Medicare',
+            # 'RAR_RegDate',
+            # 'rar_RegTime',
+            # 'DRPT_RowID',
+            # 'DRPT_PAADM_DR',
+            # 'DRPT_ReportDate',
+            # 'drpt_ReportTime',
+            # 'DRPT_VerifyDate',
+            # 'drpt_VerifyTime',
+            # 'ARCIM_Desc',
+            # 'ARCIC_Desc',
+            # 'ORCAT_Desc',
+            # 'ExamDescExResult',
+            'ResultDescExResult'
+        ]
+    ),
+])
+mri_luwak_feed['flow'].append([
+    (
+        OneToOneConvert.transform_punctuation,
+        ['ResultDescExResult']
+    )
 ])

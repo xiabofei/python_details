@@ -4,7 +4,7 @@ import pandas as pd
 
 class IO(object):
 
-    DEFAULT_CHUNK_SIZE = 5000
+    DEFAULT_CHUNK_SIZE = 2000000
     DEFAULT_QUOTE_CHAR = '"'
     DEFAULT_SEP = ','
     DEFAULT_HEADER = 0
@@ -33,6 +33,10 @@ class IO(object):
         )
 
     @classmethod
+    def read_from_excel(cls, input_path):
+        return pd.read_excel(input_path)
+
+    @classmethod
     def write_to_csv(cls,
                      df,
                      output_path,
@@ -46,3 +50,4 @@ class IO(object):
             quotechar= quote_char,
             index=index,
         )
+
