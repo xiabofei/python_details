@@ -14,7 +14,7 @@ output_path = './data/output/'
 
 columns = ['ExamDescExResult', 'ResultDescExResult']
 
-usr_dict_path = './data/output/mri_dict.dat'
+usr_dict_path = './data/input/mri_dict.dat'
 
 
 def _add_usr_dict(path):
@@ -35,6 +35,7 @@ def _replace_punctuation(content):
         ('：', ':'),
         ('“', '"'),
         ('－', '-'),
+        (' ', ''),
         ("”", '"')
     ]
     for i in _chinese_english:
@@ -70,9 +71,14 @@ with open(input_path, 'r') as f_input:
     for column in columns:
         with open(output_path + column + '_with_usr_dict', 'w') as f_output:
             for i in df.index:
+                f_output.write('[原文]:' + CLRF)
                 content = pre_process(df.loc[i, column])
-                seg_list = _cut(content)
-                seg_list = [seg.encode('utf8') for seg in seg_list]
-                f_output.write(JOIN.join(seg_list) + CLRF)
-                for k, v in poseg.cut(content):
-                    f_output.write(k.encode('utf8') + ',' + v.encode('utf8') + CLRF)
+                f_output.write(content + CLRF)
+                # seg_list = _cut(content)
+                # seg_list = [seg.encode('utf8') for seg in seg_list]
+                # f_output.write(JOIN.join(seg_list) + CLRF)
+                f_output.write('[词性标注结果]:' + CLRF)
+                for con in content.split(';'):
+                    f_output.write('\t' + ''.join(
+                        [k.encode('utf8') + '/' + v.encode('utf8') + ' ' for k, v in poseg.cut(con)]) + CLRF)
+                f_output.write(CLRF)
