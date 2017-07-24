@@ -22,8 +22,7 @@ class XHLanguageTemplate(object):
     @classmethod
     def one(cls, topic_content):
         words = ('T1', 'T2')
-        ret = defaultdict(dict)
-        num = 1
+        ret = []
         _des_pattern = ('n+v', 'v+n', 'u+n', 'd+l', 'a+n', 'n+ns', 'f+v+a', 'n+a', 'd+n', 'n+n+v+a+v',)
         _des_pattern_split = '+'
         _degree_pos = ('u', 'a', 'm')
@@ -81,18 +80,18 @@ class XHLanguageTemplate(object):
                     if topic_content[i][0] in cls._deny_word:
                         neg_or_pos = u'无'
                         break
-                ret[num]['检查子区域'] = '_'.join(reversed(pre)).encode('utf-8')
-                ret[num]['指标'] = tc[0].encode('utf-8')
-                ret[num]['断言'] = neg_or_pos.encode('utf-8')
-                ret[num]['描述'] = '_'.join(des).encode('utf-8')
-                num += 1
+                tmp_info = {}
+                tmp_info['检查子区域'] = '_'.join(reversed(pre)).encode('utf-8')
+                tmp_info['指标'] = tc[0].encode('utf-8')
+                tmp_info['断言'] = neg_or_pos.encode('utf-8')
+                tmp_info['描述'] = '_'.join(des).encode('utf-8')
+                ret.append(tmp_info)
         return ret
 
     @classmethod
     def two(cls, topic_content):
         words = (u'结合带',)
-        ret = defaultdict(dict)
-        num = 1
+        ret = []
         for index, tc in enumerate(topic_content):
             if tc[0] in words:
                 _tmp = []
@@ -101,16 +100,16 @@ class XHLanguageTemplate(object):
                         _tmp.append(topic_content[i][0])
                     else:
                         break
-                ret[num]['指标'] = tc[0].encode('utf-8')
-                ret[num]['结果'] = (''.join(_tmp)).encode('utf-8')
-                num += 1
+                tmp_info = {}
+                tmp_info['指标'] = tc[0].encode('utf-8')
+                tmp_info['结果'] = (''.join(_tmp)).encode('utf-8')
+                ret.append(tmp_info)
         return ret
 
     @classmethod
     def three(cls, topic_content):
         words = (u'盆腔积液',)
-        ret = defaultdict(dict)
-        num = 1
+        ret = []
         for index, tc in enumerate(topic_content):
             if tc[0] in words:
                 has_or_not = '有'
@@ -128,17 +127,17 @@ class XHLanguageTemplate(object):
                     if topic_content[i][0] in cls._deny_word:
                         has_or_not = '无'
                         break
-                ret[num]['指标'] = tc[0].encode('utf-8')
-                ret[num]['断言'] = has_or_not
-                num += 1
+                tmp_info = {}
+                tmp_info['指标'] = tc[0].encode('utf-8')
+                tmp_info['断言'] = has_or_not
+                ret.append(tmp_info)
                 break
         return ret
 
     @classmethod
     def four(cls, topic_content):
         words = (u'DWI',)
-        ret = defaultdict(dict)
-        num = 1
+        ret = []
         for index, tc in enumerate(topic_content):
             if tc[0] in words:
                 if_deny = '有'
@@ -162,11 +161,12 @@ class XHLanguageTemplate(object):
                         if_deny = '无'
                     if topic_content[i][0] == u'低信号':
                         high_or_low = '低信号'
-                ret[num]['检查子区域'] = '_'.join(reversed(location)).encode('utf-8')
-                ret[num]['指标'] = tc[0].encode('utf-8')
-                ret[num]['断言'] = if_deny
-                ret[num]['描述'] = high_or_low
-                num += 1
+                tmp_info = {}
+                tmp_info['检查子区域'] = '_'.join(reversed(location)).encode('utf-8')
+                tmp_info['指标'] = tc[0].encode('utf-8')
+                tmp_info['断言'] = if_deny
+                tmp_info['描述'] = high_or_low
+                ret.append(tmp_info)
         return ret
 
 
@@ -184,11 +184,11 @@ class XHPipeline(object):
         self.topic_pipeline = topic_pipeline
 
     def __setattr__(self, key, value):
-        if key=='word_segger':
+        if key == 'word_segger':
             JT.add_usr_dict(self.usr_dict_path)
             JT.suggest_usr_dict(self.usr_suggest_path)
             object.__setattr__(self, key, value)
-        object.__setattr__(self, key ,value)
+        object.__setattr__(self, key, value)
 
     def find_topic_range(self, content, topics):
         _legal_punctuation = (':',)
@@ -232,7 +232,12 @@ class XHPipeline(object):
         for item in topic_range:
             begin, end, topic = item[0][0], item[0][1], item[1]
             topic_content = [(k, v) for k, v in self.word_segger.cut(content[begin:end], HMM=False)]
-            structural_info[topic] = [ template(topic_content) for template in self.topic_pipeline[topic] ]
+            structural_info[topic] = {}
+            num = 1
+            for template in self.topic_pipeline[topic]:
+                for info in template(topic_content):
+                    structural_info[topic][str(num)] = info
+                    num += 1
         return structural_info
 
     def write_mri_structural_info(self):
@@ -242,7 +247,6 @@ class XHPipeline(object):
 
 
 if __name__ == '__main__':
-
     xiehe_topic_pipeline = OrderedDict([
         ('宫体', [XHLanguageTemplate.one, XHLanguageTemplate.two]),
         ('宫颈', [XHLanguageTemplate.one, XHLanguageTemplate.four]),
