@@ -28,26 +28,40 @@ N = 20
 skf = StratifiedKFold(n_splits=N, shuffle=True)
 
 params = {
+    # logistic regression for binary classification, output probability
     'objective':'binary:logistic',
+    # evaluation metrics for validation data
     'eval_metric':'logloss',
+    # step size shrinkage used in update to prevents overfitting
     'eta':0.01,
+    # XGBoost randomly collected how much data instances to grow trees to prevents overfitting
     'subsample':0.8,
+    # subsample ratio of columns when constructing each tree
     'colsample_bytree':0.3,
-    'max_depth':5,
-    'min_child_weight':5,
+    #  maximum depth of a tree
+    'max_depth':6,
+    # the minimum weight/counts of instances in a leaf node, larger prevents overfitting
+    'min_child_weight':8,
+    # number of parallel threads used to run xgboost
     'nthread':8,
-    'silent':0,
+    # if printing running messages
+    'silent':1,
+    # L1 regularization term on weights
     'alpha':0.001,
+    # minimum loss reduction required to make a further partition on a leaf node of the tree larger prevent overfitting
+    # 'gamma':0.01,
+    # random number seed
     'seed':np.random.randint(0,99999)
 }
 
 ## cross validation
 folds = skf.split(x, y)
 dtrain = xgb.DMatrix(data = x, label = y)
+num_boost_round = 10000
 bst = xgb.cv(
     params,
     dtrain,
-    10000,
+    num_boost_round,
     N,
     folds=folds,
     early_stopping_rounds = 100,
@@ -90,6 +104,7 @@ print('XGBoost done')
 ## svm
 #######################################
 
+"""
 from sklearn.svm import SVC
 from sklearn.model_selection import cross_val_predict
 
@@ -108,4 +123,5 @@ for i in range(100):
 print('Best threshold: %.2f'%(best_threshold))
 print('Best f1 score: %.5f'%best_score)
 print('SVM done')
+"""
 

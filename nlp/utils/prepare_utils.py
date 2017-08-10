@@ -34,6 +34,7 @@ class GeneralAddressing(object):
             ('“', '"'),
             ('－', '-'),
             (' ', ''),
+            ('Ca', '癌'),
             ("”", '"')
         ]
         for i in _chinese_english:

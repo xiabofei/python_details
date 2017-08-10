@@ -9,6 +9,7 @@ from utils.prepare_utils import GeneralAddressing as GA
 import json
 import cPickle
 import numpy as np
+import re
 
 from ipdb import set_trace as st
 
@@ -165,19 +166,15 @@ class XHLanguageTemplate(object):
                 high_or_low = '高信号'
                 location = []
                 for i in range(index - 1, -1, -1):
-                    if topic_content[i][1] == 'f':
-                        location.append(topic_content[i][0])
-                        for j in range(i - 1, -1, -1):
-                            if topic_content[j][1] == 'f':
-                                location.append(topic_content[j][0])
-                            elif topic_content[j][1] == 'x':
-                                break
+                    if topic_content[i][0] in cls._deny_word:
+                        if_deny = '无'
+                    if topic_content[i][1] == 'x':
                         break
                 for i in range(index + 1, len(topic_content)):
                     if topic_content[i][1] == 'x':
                         break
                     if topic_content[i][0] in cls._deny_word:
-                        if topic_content[i][1] == 'd' and i < len(topic_content) - 1 and topic_content[i + 1][1] == 'a':
+                        if topic_content[i][1] == 'd' and i < len(topic_content) - 1 and topic_content[i + 1][0] in (u'均匀', ):
                             continue
                         if_deny = '无'
                     if topic_content[i][0] == u'低信号':
@@ -192,20 +189,56 @@ class XHLanguageTemplate(object):
 
 
 class XHPipeline(object):
+    _stop_words = [
+        u',', u':', u';', u'.', u'', u'(', u')', u'×', u'"', u'-', u'*',
+        u'并', u'的', u'于', u'者', u'在', u'另', u'与', u'一', u'其', u'有',
+        u'约', u'呈', u'信号', u'略', u'或', u'所示', u'其它', u'等', u'稍',
+        u'达', u'区', u'为', u'位', u'范围', u'扫描', u'段', u'显示', u'位于',
+        u'直径约', u'序列', u'程度', u'性', u'扫', u'行', u'走', u'值', u'以',
+        u'显', u'至', u'受', u'分别', u'局限', u'子', u'带', u'线', u'最',
+        u'为主', u'缘', u'中', u'区域', u'数量', u'水平', u'灶', u'平', u'处',
+        u'皆', u'样', u'及'
+    ]
+
     def __init__(self,
                  input_path, columns, output_path,
                  usr_dict_path, usr_suggest_path,
+                 confirm_word_path,
+                 hitting_word_path,
+                 release_word_path,
                  label_data_path,
+                 bow_data_path,
                  word_segger, topic_pipeline):
         self.input_path = input_path
         self.columns = columns
         self.output_path = output_path
         self.usr_dict_path = usr_dict_path
         self.usr_suggest_path = usr_suggest_path
+        self.confirm_word_path = confirm_word_path
+        self.hitting_word_path = hitting_word_path
+        self.release_word_path = release_word_path
         self.label_data_path = label_data_path
+        self.bow_data_path = bow_data_path
         self.word_segger = word_segger
         self.topic_pipeline = topic_pipeline
         self.word_frequency = defaultdict(int)
+        self.hitting_and_releasing()
+
+    def hitting_and_releasing(self):
+        _confirm_words = []
+        with open(self.confirm_word_path, 'r') as f:
+            for l in f.xreadlines():
+                _confirm_words.append(l.rstrip())
+        _hitting_words = []
+        with open(self.hitting_word_path, 'r') as f:
+            for l in f.xreadlines():
+                _hitting_words.append(l.rstrip())
+        _release_words = []
+        with open(self.release_word_path, 'r') as f:
+            for l in f.xreadlines():
+                _release_words.append(l.rstrip())
+        self.confirm_words, self.hitting_words, self.release_words = \
+            _confirm_words, _hitting_words, _release_words
 
     def __setattr__(self, key, value):
         if key == 'word_segger':
@@ -215,22 +248,91 @@ class XHPipeline(object):
         object.__setattr__(self, key, value)
 
     def find_topic_range(self, content, topics):
+        # st(context=27)
         _legal_punctuation = (':',)
         _pos_punctuation = (',', ';', '.',)
         ret = []
         for topic in topics:
-            pos = content.find(topic)
+            pos = -1
+            topic_term = topic[0]
+            for _term in topic:
+                pos = content.find(_term)
+                if pos >= 0:
+                    topic_term = _term
+                    break
             if pos >= 0:
-                if content[pos + len(topic):pos + len(topic) + 1] not in _legal_punctuation:
+                if content[pos + len(topic_term):pos + len(topic_term) + 1] not in _legal_punctuation:
                     _nearest_right_comma_pos = max([content[:pos].rfind(p) for p in _pos_punctuation]) + 1
-                    ret.append([_nearest_right_comma_pos, topic])
+                    ret.append([_nearest_right_comma_pos, topic_term])
                 else:
-                    ret.append([pos, topic])
+                    ret.append([pos, topic_term])
         ret = sorted(ret, key=lambda x: x[0])
         for i in range(len(ret) - 1):
             ret[i][0] = (ret[i][0], ret[i + 1][0])
         ret[len(ret) - 1][0] = (ret[len(ret) - 1][0], len(content))
         return ret
+
+    def split_report(self, text):
+        def check_remove_words(remove_list, data):
+            for l in remove_list:
+                if l in data:
+                    return False
+            return True
+
+        word_dict = {
+            '膀胱': [],
+            '子宫': ['子宫', '宫颈'],
+            '宫颈': ['宫颈', '残存宫颈', '残端宫颈', '可见宫颈', '子宫颈', '子宫宫颈'],
+            '附件': [],
+            '直肠壁': ['直肠壁'],
+            '髂骨': [],
+            '直肠膀胱三角': [],
+            '盆腔': [],
+            '腹膜': []
+        }
+        word_dict_remove = {
+            '膀胱': [],
+            '子宫': ['子宫颈', '子宫宫颈'],
+            '宫颈': ['宫颈癌'],
+            '附件': [],
+            '直肠壁': [],
+            '髂骨': [],
+            '直肠膀胱三角': [],
+            '盆腔': [],
+            '腹膜': []
+        }
+        ids = []
+        text_seg = re.split(r',|\.', text)
+        keyword = word_dict.keys()
+        idx, last_idx = 0, -1
+        last_key = ""
+        text_rep = ''
+        for i in range(len(text_seg)):
+            for k in keyword:
+                if k in text_seg[i]:
+                    startIdx = last_idx + idx + 1
+                    endIdx = last_idx + (idx + 1) * 2
+                    # 区域关键字出现的最后一个字符的位置
+                    idx1 = text[startIdx:endIdx].find(k) + len(k)
+                    # 某句话出现了keyword,并且此keyword不在误识别组里
+                    cond1 = len(word_dict[k]) == 0
+                    cond2 = text[startIdx:endIdx][:idx1] in word_dict[k]
+                    cond3 = check_remove_words(word_dict_remove[k], text[startIdx:endIdx])
+                    if cond1 or (cond2 and cond3):
+                        # 上个区域的所有内容
+                        if last_idx > -1:
+                            ids.append(((last_idx, last_idx + idx + 1), last_key))
+                        # 某个区域的起始位置,上次截断的位置+1(标点)
+                        last_idx = startIdx
+                        # 去掉已经处理的部分
+                        text_rep = text[last_idx:]
+                        last_key = k
+                        keyword.remove(k)  # 去掉识别出的区域
+                        break
+            # 相对于剩下的部分,找到读取的最后一个字符的index
+            idx = text_rep.find(text_seg[i]) + len(text_seg[i])
+        ids.append(((last_idx, len(text)), last_key))
+        return ids
 
     def read_mri_report(self):
         with open(self.input_path, 'r') as f_input:
@@ -246,90 +348,82 @@ class XHPipeline(object):
                 )
                 yield (mri_describe, mri_result)
 
+
+    def get_word_frequency(self):
+        for content in self.read_mri_report():
+            # count word in mri exam desc
+            for word, pos in self.word_segger.cut(content[0], HMM=False):
+                if pos not in ('x',):
+                    try:
+                        int(word)
+                    except Exception, e:
+                        cond1, cond2, cond3 = 'mm' not in word, 'cm' not in word, word not in self._stop_words
+                        if cond1 and cond2 and cond3:
+                            self.word_frequency[word] += 1
+            # count word in mri result desc
+
     def execute_pipeline(self, pipe_type):
         for content in self.read_mri_report():
-            if pipe_type == 'label':
-                yield self.extract_paragraph_for_label(content[0], content[1])
-            elif pipe_type == 'struct':
-                yield self.extract_structural_info(content[0])
-            elif pipe_type == 'cut':
-                yield self.create_split_text(content[0])
+            if pipe_type == 'struct':
+                yield self.extract_structural_info(content[0], content[1])
 
-
-    def extract_paragraph_for_label(self, content, result):
-        topic_range = self.find_topic_range(content, self.topic_pipeline.keys())
-        paragraph = defaultdict(dict)
-        paragraph['MRI报告'] = content
-        paragraph['MRI解读'] = result
-        for word, pos in self.word_segger.cut(content, HMM=False):
-            if pos not in ('x',):
-                try:
-                    int(word)
-                except Exception, e:
-                    if 'mm' not in word and 'cm' not in word and u'的' not in word:
-                        self.word_frequency[word] += 1
-        paragraph['各区域标注结果'] = {area.encode('utf-8'): "" for area in XHLanguageTemplate._exam_areas}
-        # paragraph['切词结果'] = ' '.join(
-        #     [k.encode('utf-8') + '/' + v.encode('utf-8') for k, v in self.word_segger.cut(content, HMM=False) if
-        #      v not in ('x',)])
-        # for item in topic_range:
-        #     begin, end, topic = item[0][0], item[0][1], item[1]
-        #     paragraph[topic]['content'] = content[begin:end]
-        #     paragraph[topic]['label'] = self.label_proxy(content[begin:end], 'rule')
-        return paragraph
-
-    def label_proxy(self, content, label_type):
-        if label_type == 'rule':
-            return self.label_by_rule(content)
-
-    def label_by_rule(self, content):
-        _negative_words = ('未见', '无异常')
-        for word in _negative_words:
-            if word in content:
-                return '0'
-        return '99'
-
-    def extract_structural_info(self, content):
+    def extract_structural_info(self, content, result):
         structural_info = {}
+        structural_info['content'] = content
+        structural_info['result'] = result
         topic_range = self.find_topic_range(content, self.topic_pipeline.keys())
         for item in topic_range:
             begin, end, topic = item[0][0], item[0][1], item[1]
             topic_content = [(k, v) for k, v in self.word_segger.cut(content[begin:end], HMM=False)]
             structural_info[topic] = {}
+            structural_info[topic]['0'] = ' '.join(
+                [tc[0].encode('utf-8') + '/' + tc[1].encode('utf-8') for tc in topic_content]
+            )
             num = 1
-            for template in self.topic_pipeline[topic]:
+            _pipeline = []
+            for cur_topics, cur_pipeline in self.topic_pipeline.items():
+                if topic in cur_topics:
+                    _pipeline = cur_pipeline
+            for template in _pipeline:
                 for info in template(topic_content):
                     structural_info[topic][str(num)] = info
                     num += 1
         return structural_info
 
-    def create_split_text(self, content):
-        split_dat = {}
-        split_dat['cut'] = '/'.join([ k.encode('utf8') for k, _ in self.word_segger.cut(content, HMM=False)])
-        return split_dat
-
-
-    def conduct_mri_structural_info(self, pipe_type='struct'):
+    def conduct_mri_flow(self, pipe_type='struct'):
         with open(self.output_path, 'w') as f_output:
             dat = {}
             num = 1
             for structural_info in self.execute_pipeline(pipe_type):
                 dat[num] = structural_info
                 num += 1
-                # f_output.write(json.dumps(structural_info, indent=4, ensure_ascii=False, sort_keys=True) + CLRF)
             f_output.write(json.dumps(dat, indent=4, ensure_ascii=False, sort_keys=True))
 
-    def create_train_and_validation_data(self, validation_ratio=0.3):
-        # check validation ratio
-        try:
-            ratio = float(validation_ratio)
-            if ratio > 1 or ratio < 0:
-                raise ValueError('validation ratio \'%s\' not valid' % validation_ratio)
-        except Exception, e:
-            raise TypeError('validation ratio \'%s\' not float' % validation_ratio)
+    def determine_label_by_rule(self, exam, result):
+        label = 0
+        # confirm 1 rule
+        for word in self.confirm_words:
+            if word in result:
+                label = 1
+                return label
+        # hitting rule
+        for word in self.hitting_words:
+            if word in result:
+                label = 1
+                break
+        # releasing rule
+        if label == 1:
+            for word in self.release_words:
+                if word in result:
+                    label = 0
+                    break
+        return label
+
+    def create_train_and_validation_data(self, validation_ratio=0.3, test_ratio=0.0):
         # word encoding
         word_index = {}
         n_tokens = 0
+        # filter word by frequency
         for k, v in sorted(xh_pipeline.word_frequency.items(), key=lambda x: x[1], reverse=True):
             if v > 5:
                 word_index[k] = n_tokens
@@ -338,61 +432,118 @@ class XHPipeline(object):
         # create label data
         max_sentence_length = 0
         data4lstm = []
-        with open(self.label_data_path, 'w') as f_output:
+        data4BOW_display = {}
+        data4BOW_pkl = []
+        data4display = {}
+        num = 1
+        with open(self.label_data_path, 'w') as f_output, open(self.bow_data_path, 'w') as f_bow_output:
             for content in self.read_mri_report():
                 exam = content[0]
                 result = content[1]
-                a_piece_of_data = {}
-                a_piece_of_data['label'] = 0
-                if '考虑宫颈癌' in result:
-                    a_piece_of_data['label'] = 1
-                data = []
+                # determine label by rule
+                label = self.determine_label_by_rule(exam, result)
+                # data for lstm
+                feature_data = {}
+                feature_data['label'] = label
+                feature_data['data'] = []
                 for k, v in self.word_segger.cut(content[0], HMM=False):
                     if word_index.get(k, None):
-                        data.append(int(word_index[k]))
-                a_piece_of_data['data'] = data
-                a_piece_of_data['data_length'] = len(data)
-                if len(data) > max_sentence_length:
-                    max_sentence_length = len(data)
-                data4lstm.append(a_piece_of_data)
+                        feature_data['data'].append(int(word_index[k]))
+                feature_data['data_length'] = len(feature_data['data'])
+                if feature_data['data_length'] > max_sentence_length:
+                    max_sentence_length = feature_data['data_length']
+                data4lstm.append(feature_data)
+                # data for bag of words
+                bow_data_display = {}
+                bow_data_display['label'] = label
+                bow_data_display['data'] = np.zeros(n_tokens + 1)
+                bow_data_display['check'] = []
+                bow_data_pkl = {}
+                bow_data_pkl['label'] = label
+                bow_data_pkl['data'] = np.zeros(n_tokens + 1)
+                bow_data_pkl['check'] = []
+                for k, v in self.word_segger.cut(content[0], HMM=False):
+                    if word_index.get(k, None):
+                        # for display in json format
+                        bow_data_display['data'][int(word_index[k])] += 1
+                        bow_data_display['check'].append('/'.join([k, str(word_index[k])]))
+                        # for model in pkl format
+                        bow_data_pkl['data'][int(word_index[k])] += 1
+                        bow_data_pkl['check'].append('/'.join([k, str(word_index[k])]))
+                bow_data_display['data'] = \
+                    '  '.join([str(i) + ':' + str(c) for i, c in enumerate(bow_data_display['data']) if c > 0]).encode(
+                        'utf-8')
+                bow_data_display['check'] = \
+                    ' '.join(bow_data_display['check']).encode('utf-8')
+                data4BOW_display[num] = bow_data_display
+                # data for display
+                display_data = defaultdict(dict)
+                display_data['label'] = str(label)
+                display_data['data']['exam'] = exam
+                display_data['data']['result'] = result
+                data4display[num] = display_data
+                # data for pkl
+                data4BOW_pkl.append(bow_data_pkl)
+                num += 1
+            f_output.write(json.dumps(data4display, indent=4, ensure_ascii=False, sort_keys=True) + CLRF)
+            f_bow_output.write(json.dumps(data4BOW_display, indent=4, ensure_ascii=False, sort_keys=True) + CLRF)
+            cPickle.dump(data4BOW_pkl, open('./data/output/bow.pkl', 'wb'), protocol=cPickle.HIGHEST_PROTOCOL)
         # st(context=21)
         print max_sentence_length
         # shuffle all the data
         idx = range(len(data4lstm))
         np.random.shuffle(idx)
+        # create train / validation / test range point
+        train_begin, train_end = 0, int(len(idx) * (1 - validation_ratio - test_ratio))
+        valid_begin, valid_end = train_end, train_end + int(len(idx) * validation_ratio)
+        test_begin, test_end = valid_end, len(idx)
         # create data for train
         count_label1 = 0
-        data4lstm_validation = []
-        for i in idx[0:int(len(idx) * ratio)]:
-            data4lstm_validation.append(data4lstm[i])
-            count_label1 += data4lstm[i]['label']
-        print("Validation data:")
-        print("\tlabel 1 %s" % count_label1)
-        print("\tlabel 0 %s" % (int(len(idx) * ratio) - count_label1))
-        cPickle.dump(data4lstm_validation, open('./data/output/data4lstm_test', 'wb'),
-                     protocol=cPickle.HIGHEST_PROTOCOL)
-        # create data for validation
-        count_label1 = 0
         data4lstm_train = []
-        for i in idx[int(len(idx) * ratio):]:
+        for i in idx[train_begin:train_end]:
             data4lstm_train.append(data4lstm[i])
             count_label1 += data4lstm[i]['label']
         print("Train data:")
         print("\tlabel 1 %s" % count_label1)
-        print("\tlabel 0 %s" % (len(idx) - int(len(idx) * ratio) - count_label1))
-        cPickle.dump(data4lstm_train, open('./data/output/data4lstm_train', 'wb'), protocol=cPickle.HIGHEST_PROTOCOL)
+        print("\tlabel 0 %s" % (train_end - train_begin - count_label1))
+        cPickle.dump(data4lstm_train, open('./medical/data4lstm_train', 'wb'),
+                     protocol=cPickle.HIGHEST_PROTOCOL)
+        # create data for validation
+        count_label1 = 0
+        data4lstm_valid = []
+        for i in idx[valid_begin:valid_end]:
+            data4lstm_valid.append(data4lstm[i])
+            count_label1 += data4lstm[i]['label']
+        print("Validation data:")
+        print("\tlabel 1 %s" % count_label1)
+        print("\tlabel 0 %s" % (valid_end - valid_begin - count_label1))
+        cPickle.dump(data4lstm_valid, open('./medical/data4lstm_valid', 'wb'), protocol=cPickle.HIGHEST_PROTOCOL)
+        # create data for test
+        count_label1 = 0
+        data4lstm_test = []
+        for i in idx[test_begin:test_end]:
+            data4lstm_test.append(data4lstm[i])
+            count_label1 += data4lstm[i]['label']
+        print("Test data:")
+        print("\tlabel 1 %s" % count_label1)
+        print("\tlabel 0 %s" % (test_end - test_begin - count_label1))
+        cPickle.dump(data4lstm_test, open('./medical/data4lstm_test', 'wb'), protocol=cPickle.HIGHEST_PROTOCOL)
 
 
 if __name__ == '__main__':
     xiehe_topic_pipeline = OrderedDict([
-        # ('膀胱', []),
-        ('宫体', [XHLanguageTemplate.one, XHLanguageTemplate.two]),
-        ('宫颈', [XHLanguageTemplate.one, XHLanguageTemplate.four]),
-        ('阴道及外阴', [XHLanguageTemplate.one, XHLanguageTemplate.two]),
-        ('双侧附件', [XHLanguageTemplate.one, XHLanguageTemplate.two]),
-        ('淋巴结', [XHLanguageTemplate.one, XHLanguageTemplate.two]),
-        ('其它', [XHLanguageTemplate.one, XHLanguageTemplate.two]),
-        ('盆腔积液', [XHLanguageTemplate.one, XHLanguageTemplate.three]),
+        (('其它', '其他', '膀胱',), [XHLanguageTemplate.one, XHLanguageTemplate.four]),
+        (('宫体', '子宫'), [XHLanguageTemplate.one, XHLanguageTemplate.two, XHLanguageTemplate.four]),
+        (('宫颈',), [XHLanguageTemplate.one, XHLanguageTemplate.four]),
+        (('阴道及外阴',), [XHLanguageTemplate.one, XHLanguageTemplate.four]),
+        (('双侧附件', '卵巢',), [XHLanguageTemplate.one, XHLanguageTemplate.four]),
+        (('淋巴结',), [XHLanguageTemplate.one, XHLanguageTemplate.four]),
+        (('直肠壁',), [XHLanguageTemplate.one, XHLanguageTemplate.four]),
+        (('髂骨',), [XHLanguageTemplate.one, XHLanguageTemplate.four]),
+        (('腹膜',), [XHLanguageTemplate.one, XHLanguageTemplate.four]),
+        (('臀大肌',), [XHLanguageTemplate.one, XHLanguageTemplate.four]),
+        (('直肠膀胱三角',), [XHLanguageTemplate.one, XHLanguageTemplate.four]),
+        (('盆腔积液',), [XHLanguageTemplate.one, XHLanguageTemplate.three]),
     ])
 
     columns = ['ExamDescExResult', 'ResultDescExResult']
@@ -404,22 +555,35 @@ if __name__ == '__main__':
     input_path = './data/input/all_mri.csv'
     output_path = './data/output/mri_describe_result.dat'
 
-    label_data_path = './data/output/label_data.dat'
+    label_data_path = './data/output/label_data.json'
+    bow_data_path = './data/output/bow_data.json'
+
+    confirm_word_path = './data/input/confirm_words.dat'
+    hitting_word_path = './data/input/hitting_words.dat'
+    release_word_path = './data/input/release_words.dat'
 
     word_segger = poseg
 
     xh_pipeline = XHPipeline(
         input_path, columns, output_path,
         usr_dict_path, usr_suggest_path,
+        confirm_word_path,
+        hitting_word_path,
+        release_word_path,
         label_data_path,
+        bow_data_path,
         word_segger,
         xiehe_topic_pipeline
     )
-    xh_pipeline.conduct_mri_structural_info(pipe_type='cut')
 
-    with open('./data/output/word_frequency.dat', 'w') as f:
-        for k, v in sorted(xh_pipeline.word_frequency.items(), key=lambda x: x[1]):
-            if v > 5:
-                f.write(k.encode('utf-8') + ',' + str(v) + CLRF)
+    # count word frequency
+    xh_pipeline.get_word_frequency()
+    # conduct mri analyze flow
+    xh_pipeline.conduct_mri_flow(pipe_type='struct')
 
-    xh_pipeline.create_train_and_validation_data()
+    # with open('./data/output/word_frequency.dat', 'w') as f:
+    #     for k, v in sorted(xh_pipeline.word_frequency.items(), key=lambda x: x[1]):
+    #         if v > 5:
+    #             f.write(k.encode('utf-8') + ',' + str(v) + CLRF)
+    #
+    # xh_pipeline.create_train_and_validation_data()
