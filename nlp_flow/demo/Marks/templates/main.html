@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+{% load staticfiles %}
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Insert title here</title>
+    <script src="{% static 'js/jquery-1.11.3.min.js' %}"></script>
+    <!--<link href="{% static 'css/bootstrap.css' %}" type="text/css" rel="stylesheet"/>-->
+    <style type="text/css">
+        .frame {
+            width: 92%;
+            height: 92%;
+        }
+
+        .frame-left {
+            float: left;
+            height: auto;
+            width: 54%;
+
+        }
+
+        .frame-left-text {
+            background-color: aliceblue;
+            border: 1px solid #226699;
+            margin: 20px 0 0 20px;
+            color: #268;
+            font-size: 16px;
+            line-height: 28px;
+            padding: 10px 20px;
+            overflow-y: auto;
+            overflow-x: hidden;
+            border-radius: 5px 0px 5px 5px;
+        }
+
+        .frame-right {
+            float: left;
+            width: 32%;
+            height: 90%;
+            padding: 0 10px 0 0px;
+            margin: 20px 0 0 0px;
+            font-size: 14px;
+            overflow-y: auto;
+            overflow-x: hidden;
+            border-radius: 0px 0 5px 5px;
+        }
+
+        .report-add {
+            width: 50px;
+            text-align: center;
+        }
+
+        .thead {
+            background-color: #269;
+            color: white;
+            padding: 5px 8px;
+        }
+
+        .tcell {
+            color: #269;
+            padding: 5px 8px;
+        }
+
+        .predict {
+            padding: 5px 7px;
+            color: #aaa;
+            border-radius: 5px;
+        }
+
+        .predict-selected {
+            background-color: #269abc;
+            color: white;
+        }
+
+        .mark {
+            background-color: #226699;
+            font-size: 16px;
+            color: white;
+            padding: 5px 10px 5px 20px;
+        }
+
+        .mark-close {
+            border-bottom: 1px solid #f2f7fc;
+        }
+
+        .description-frame {
+            background-color: #269;
+        }
+
+        .description {
+            cursor: hand;
+            padding: 8px 14px;
+            margin: 0px 8px;
+            color: #444;
+            border-left: 1px solid #269;
+            border-right: 1px solid #269;
+            border-bottom: 1px solid #269;
+            background-color: #f2f7fc;
+            cursor: pointer;
+        }
+
+        .description:hover {
+            cursor: hand;
+            padding: 8px 14px;
+            margin: 0px 8px;
+            border-bottom: 1px solid #269;
+            background-color: white;
+            cursor: pointer;
+        }
+
+        .add-border {
+            border-bottom: 1px solid #269;
+            background-color: white;
+            cursor: pointer;
+        }
+
+        .t {
+            padding-bottom: 20px;
+        }
+
+        .details-frame {
+            margin-bottom: 7px;
+        }
+
+        .details {
+            background-color: #76b1cf;
+            border-radius: 5px;
+            color: white;
+            padding: 2px 5px;
+            margin: 0px 2px;
+        }
+
+        .div-toggle {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+<div align="center">
+    <div class="frame" align="left">
+        <div style="padding: 10px 0">
+            <img style="float: left" src="{% static 'img/logo.png' %}" width="60px">
+            <div style="margin: 5px;font-size: 20px">智能(AI)结构化MRI报告应用</div>
+        </div>
+        <div id="frame" style="border: 1px solid #226699;">
+            <div class="frame-left">
+                <div id="report" class="frame-left-text">
+                    <span id="report-text">
+
+                    </span>
+                    <span id="modify" style='font-size:14px;color:#aaa;cursor: pointer' onclick='modify()'>[修改]</span>
+                </div>
+                <div id="predict" style="float: left; padding: 10px 0px 0px 25px">
+                    <div style="padding-top: 10px;margin-bottom:10px;border-bottom: 1px #269 solid;width: 100%;">预测结果
+                    </div>
+                    <table cellpadding="1" cellspacing="1" style="background-color: #269;">
+                        <thead style="background-color: #269;color: white;">
+                        <td class="thead">区域</td>
+                        <td class="thead">有相关症状</td>
+                        <td class="thead">无相关症状</td>
+                        <td class="thead">不明确</td>
+                        <td class="thead">有无关症状</td>
+                        </thead>
+                        <tbody id="tbody" style="background-color: white">
+                        <td class="tcell">宫颈</td>
+                        <td id="gjyxg" name="check" class="tcell" align="center">️</td>
+                        <td id="gjwxg" name="check" class="tcell" align="center"></td>
+                        <td id="gjbmq" name="check" class="tcell" align="center"></td>
+                        <td id="gjywg" name="check" class="tcell" align="center"></td>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div style="float: left;width: 40px;height: 30px;margin-top:20px;"></div>
+            <div class="frame-right">
+                <div id="frame-right" class="t">
+
+                </div>
+            </div>
+
+        </div>
+
+    </div>
+</div>
+
+<script type="text/javascript">
+    //全局变量,记录初始报告的内容
+    var text = ""
+
+    $(document).ready(function () {
+        text = $('#report').text()
+        h = $(window).height()
+        $("#frame").height(h - 85)
+
+        modify()
+    })
+
+    // 点区域,展开,折叠其余
+    function toggle(obj) {
+        //t = "#" + obj.innerText.replace(" ", "")
+        if (obj.innerText == '-')
+            $(obj).text("+")
+        else
+            $(obj).text("-")
+        t = "#" + obj.getAttribute("name")
+        t1 = $(t).children('div')
+        for (i = 0; i < t1.length; i++) {
+            $(t1[i]).fadeToggle(300)
+        }
+
+        p = obj.parentNode
+        if (!$(p).hasClass("mark-close")) {
+            $(p).addClass("mark-close")
+        }
+        else {
+            $(p).removeClass("mark-close")
+        }
+    }
+
+    function addHighlight(obj, i) {
+
+        if ($("div[name='description']").hasClass("add-border")) {
+            $("div[name='description']").removeClass("add-border")
+        }
+
+        $(obj).addClass("add-border")
+        // 找到当前的位置,起始,终止
+        elem = "span[name='pos" + i + "']"
+        var o = $(elem)
+
+        // 转成数组
+        //s = o.text().substring(1, o.text().length - 1)
+        //s1 = s.split('(').join('')
+        //pos = s1.split(')').join('')
+        pos_arr = o.text().split(",")
+
+        text = $("#report-text").text()
+
+        highlight(text, pos_arr)
+    }
+
+
+    function highlight(report, pos_arr) {
+
+        idx_s = splitTest(report, pos_arr[0])
+        idx_e = splitTest(report, pos_arr[1])
+
+        new_text = report.substring(0, idx_s)
+        new_text += "<span style='background-color:#268;color:white'>" + report.substring(idx_s, idx_e) + '</span>'
+
+        new_text += report.substring(idx_e, report.length)
+
+
+        $("#report-text").html(new_text)
+
+    }
+
+    function sendMsg() {
+        var msg = $("#text").val();
+        $.ajax({
+                    url: 'send/',
+                    type: 'POST',
+                    data: {msg: msg},
+                    success: function (result) {
+                        // 将数据解析成json
+                        result = JSON.parse(result)
+
+                        //输入的报告
+                        msg = result['msg']
+                        $("#report-text").html(msg)
+
+                        //有无发病
+                        var threshold = 0.35
+                        $("#predict").show()
+                        if (result['rate'] > threshold) {
+                            $("#gjyxg").text("✔")
+                        } else {
+                            $("#gjwxg").text("✔")
+                        }
+                        $("#rate").show()
+
+                        $("#modify").show()
+
+                        //结构化分析结果
+                        var areas = result['areas']
+                        //不含指标的区域,不显示
+                        var empty = result['empty_area']
+                        var content = ""
+                        var j = 1
+
+                        for (var area in areas) {
+                            if (notEmpty(area, empty)) {
+
+                                content += "<div name='mark' class='mark'>" + area
+                                        + "<span name=" + area + " style='cursor:pointer;float: right;padding: 0 5px ;background-color: #a1c4e2;'"
+                                        + "onclick='toggle(this)'> - </span></div>"
+                                        + "<div id=" + area + " name='toggle'>"
+                                for (var id in areas[area]) {
+                                    if (id == 'range') {
+                                        content += "<span name='pos" + j + "' style='display:none'>"
+                                                + areas[area]['range']['begin'] + ","
+                                                + areas[area]['range']['end'] + "</span>"
+                                        j += 1
+                                    }
+                                    else {
+                                        content += "<div class='description-frame'>"
+                                                + "<div name='description' class='description' onclick='addHighlight(this," + j + ")'>"
+                                        for (var k in areas[area][id]) {
+                                            content += "<span>"
+                                            if (k == '子区域' || k == '描述') {
+                                                content += "<div class='details-frame'>" + k + ": "
+                                                for (var i = 0; i < areas[area][id][k].length; i++) {
+                                                    content += "<span class='details'>" + areas[area][id][k][i] + "</span>"
+                                                }
+                                                content += "</div>"
+                                            } else {
+                                                content += "<div class='details-frame'>" + k + ": " + areas[area][id][k] + "</div>"
+                                            }
+                                            content += "</span>"
+                                        }
+                                        content += "</div></div>"
+                                    }
+
+                                }
+                                content += "</div>"
+                            }
+                        }
+                        $("#frame-right").html(content)
+                    }
+                }
+        );
+    }
+
+    function notEmpty(item, list) {
+        for (i = 0; i < list.length; i++) {
+            if (item == list[i]) {
+                return false
+            }
+        }
+        return true
+    }
+
+    //返回字节对应的文本index,1汉字=3字节
+    function splitTest(txt, target) {
+        if (target == 0) {
+            return 0
+        }
+        bytesCount = 0
+        for (var i = 0; i < txt.length; i++) {
+            var c = txt.charAt(i);
+            //非汉字
+            if (/^[\u0000-\u00ff]$/.test(c)) {
+                bytesCount += 1;
+            }
+            //汉字
+            else {
+                bytesCount += 3;
+            }
+
+            if (bytesCount >= target) {
+                break
+            }
+        }
+        return i
+    }
+
+    //点修改按钮,重新输入文本
+    function modify() {
+        $("#report-text").html(
+                "<textarea id='text' style='width: 100%;height: 300px;font-size: 16px' placeholder='请输入报告内容'>" +
+
+                "</textarea>" +
+                "<div onclick='sendMsg()' class='details report-add'>确定</div>"
+        )
+
+        tds = $("td[name='check']")
+        for (i = 0; i < tds.length; i++) {
+            $(tds[i]).text("")
+        }
+
+        $("#modify").hide()
+        $("#rate").hide()
+        $("#predict").hide()
+        $("#frame-right").html("")
+    }
+
+</script>
+</body>
+</html>
