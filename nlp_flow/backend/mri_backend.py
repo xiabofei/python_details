@@ -401,11 +401,11 @@ class XHPipeline(object):
         # st(context=21)
         if model_type == 'bow':
             bow_data_display = {}
-            bow_data_display['label'] = label
+            # bow_data_display['label'] = label
             bow_data_display['data'] = np.zeros(n_tokens + 1)
             bow_data_display['check'] = []
             bow_data_pkl = {}
-            bow_data_pkl['label'] = label
+            # bow_data_pkl['label'] = label
             bow_data_pkl['data'] = np.zeros(n_tokens + 1)
             bow_data_pkl['check'] = []
             for k, v in self.word_segger.cut(exam, HMM=False):
@@ -417,20 +417,20 @@ class XHPipeline(object):
                     bow_data_display['data'][int(word_index[k])] += 1
                     bow_data_display['check'].append('/'.join([k, str(word_index[k])]))
 
-            if if_knowledge_driven:
-                _feature_display, _feature_pkl = self.add_knowledge_driven_feature(exam, result)
-                bow_data_display['domain_feature'] = _feature_display
-                bow_data_pkl['data'] = np.concatenate((bow_data_pkl['data'], _feature_pkl), axis=0)
+                if if_knowledge_driven:
+                    _feature_display, _feature_pkl = self.add_knowledge_driven_feature(exam, result)
+                    bow_data_display['domain_feature'] = _feature_display
+                    bow_data_pkl['data'] = np.concatenate((bow_data_pkl['data'], _feature_pkl), axis=0)
 
             bow_data_display['data'] = \
-                '  '.join([str(i) + ':' + str(c) for i, c in enumerate(bow_data_display['data']) if c > 0]).encode(
-                    'utf-8')
+                    '  '.join([str(i) + ':' + str(c) for i, c in enumerate(bow_data_display['data']) if c > 0]).encode(
+                        'utf-8')
             bow_data_display['check'] = ' '.join(bow_data_display['check']).encode('utf-8')
             return bow_data_display, bow_data_pkl
         # for lstm data
         if model_type == 'lstm':
             feature_data = {}
-            feature_data['label'] = label
+            # feature_data['label'] = label
             feature_data['data'] = []
             for k, v in self.word_segger.cut(exam, HMM=False):
                 if word_index.get(k, None):
@@ -438,7 +438,7 @@ class XHPipeline(object):
             feature_data['data_length'] = len(feature_data['data'])
             return feature_data
 
-    def create_train_and_validation_data(self, threshold_freq=15, validation_ratio=0.3):
+    def create_train_and_validation_data(self, threshold_freq=15, validation_ratio=0.3, model_type='bow'):
         # word encoding
         word_index = {}
         n_tokens = 0
@@ -448,28 +448,44 @@ class XHPipeline(object):
                 word_index[k] = n_tokens
                 n_tokens += 1
         # create label data
-        data4BOW_display = {}
-        data4BOW_pkl = []
-        num = 1
-        with open(self.bow_data_path, 'w') as f_bow_output:
-            for content in self.read_mri_report():
-                exam = content[0]
-                result = content[1]
-                bow_data_display, bow_data_pkl = self.create_model_data(
-                    exam,
-                    result,
-                    word_index,
-                    n_tokens,
-                    'bow',
-                    # True
-                )
-                # st(context=21)
-                data4BOW_display[num] = bow_data_display
-                data4BOW_pkl.append(bow_data_pkl)
-                num += 1
-            f_bow_output.write(json.dumps(data4BOW_display, indent=4, ensure_ascii=False, sort_keys=True) + CLRF)
-            cPickle.dump(data4BOW_pkl, open('../4bow/bow.pkl', 'wb'), protocol=cPickle.HIGHEST_PROTOCOL)
-            # self.shuffle_and_store_data(data4BOW_pkl, './4bow/bow', 0.3)
+        if model_type == 'bow':
+            data4BOW_display = {}
+            data4BOW_pkl = []
+            num = 1
+            with open(self.bow_data_path, 'w') as f_bow_output:
+                for content in self.read_mri_report():
+                    exam = content[0]
+                    result = content[1]
+                    bow_data_display, bow_data_pkl = self.create_model_data(
+                        exam,
+                        result,
+                        word_index,
+                        n_tokens,
+                        model_type,
+                        # True
+                    )
+                    data4BOW_display[num] = bow_data_display
+                    data4BOW_pkl.append(bow_data_pkl)
+                    num += 1
+                f_bow_output.write(json.dumps(data4BOW_display, indent=4, ensure_ascii=False, sort_keys=True) + CLRF)
+                cPickle.dump(data4BOW_pkl, open('../4bow/bow.pkl', 'wb'), protocol=cPickle.HIGHEST_PROTOCOL)
+        if model_type == 'lstm':
+            data4lstm_pkl = []
+            with open('../4lstm/lstm.pkl', 'wb') as f_lstm_output:
+                for content in self.read_mri_report():
+                    exam = content[0]
+                    result = content[1]
+                    lstm_pkl = self.create_model_data(
+                        exam,
+                        result,
+                        word_index,
+                        n_tokens,
+                        model_type,
+                    )
+                    data4lstm_pkl.append(lstm_pkl)
+                cPickle.dump(data4lstm_pkl, f_lstm_output, protocol=cPickle.HIGHEST_PROTOCOL)
+
+
 
     def shuffle_and_store_data(self, data, path, validation_ratio=0.3):
         # shuffle all the data
@@ -528,6 +544,7 @@ if __name__ == '__main__':
     label_data_path = '../data/output/label_data.json'
     bow_data_path = '../data/output/bow_data.json'
 
+
     confirm_word_path = '../data/input/confirm_words.dat'
     hitting_word_path = '../data/input/hitting_words.dat'
     release_word_path = '../data/input/release_words.dat'
@@ -558,4 +575,4 @@ if __name__ == '__main__':
         cPickle.dump(word_frequency, f)
     # conduct mri analyze flow
     xh_pipeline.conduct_mri_flow(pipe_type='struct')
-    xh_pipeline.create_train_and_validation_data(THRESHOLD_FREQ, 0.3)
+    xh_pipeline.create_train_and_validation_data(THRESHOLD_FREQ, 0.3, 'lstm')
