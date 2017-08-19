@@ -396,7 +396,7 @@ class XHPipeline(object):
     def create_model_data(self, exam, result, word_index, n_tokens, model_type='bow', if_knowledge_driven=False):
         if model_type not in ('bow', 'lstm',):
             raise TypeError("model_type \"%s\" not valid " % model_type)
-        label = self.determine_label_by_rule(exam, result)
+        # label = self.determine_label_by_rule(exam, result)
         # for bow data
         # st(context=21)
         if model_type == 'bow':
@@ -471,6 +471,7 @@ class XHPipeline(object):
                 cPickle.dump(data4BOW_pkl, open('../4bow/bow.pkl', 'wb'), protocol=cPickle.HIGHEST_PROTOCOL)
         if model_type == 'lstm':
             data4lstm_pkl = []
+            max_length = 0
             with open('../4lstm/lstm.pkl', 'wb') as f_lstm_output:
                 for content in self.read_mri_report():
                     exam = content[0]
@@ -482,7 +483,11 @@ class XHPipeline(object):
                         n_tokens,
                         model_type,
                     )
+                    if max_length < lstm_pkl['data_length']:
+                        max_length = lstm_pkl['data_length']
                     data4lstm_pkl.append(lstm_pkl)
+                print('max length %s '%(max_length))
+                print('n tokens %s '%(n_tokens))
                 cPickle.dump(data4lstm_pkl, f_lstm_output, protocol=cPickle.HIGHEST_PROTOCOL)
 
 

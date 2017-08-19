@@ -35,7 +35,8 @@ class GeneralAddressing(object):
             ('－', '-'),
             (' ', ''),
             ('Ca', '癌'),
-            ("”", '"')
+            ("”", '"'),
+            ('子宫颈', '宫颈')
         ]
         for i in _chinese_english:
             content = content.replace(i[0], i[1])

@@ -102,7 +102,6 @@ def model_feature_weight():
         data.encode('utf8'), [GA.replace_punctuation, GA.negative_positive, GA.clear_trivial_head]
     )
     _, bow_data_pkl = g_pipeline_instance.create_model_data(data, '', g_word_index, g_n_tokens, 'bow')
-    # st(context=21)
     d_val = DMatrix(data=bow_data_pkl['data'].reshape(1,-1))
     prob = g_clf.predict(d_val)
     return str(prob[0])
