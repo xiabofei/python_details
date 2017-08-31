@@ -3,6 +3,7 @@
 import os
 import re
 import sys
+import functools
 
 from collections import defaultdict
 
@@ -56,12 +57,32 @@ class EMRAnalyzer(object):
         return '住院志' in f_name
 
     @classmethod
+    def _filter_name_qita(cls, f_name):
+        return '其他记录' in f_name
+
+    @classmethod
+    def _filter_name_bingcheng(cls, f_name):
+        return '病程记录' in f_name
+
+    def ruyuan_file(cls, f_name):
+        return f_name in cls.f_names
+
+    @classmethod
     def _clean_content(cls, content):
         return content.replace('　', '').strip()
 
     @classmethod
-    def extract_content_from_one_record(cls, content):
+    def extract_elem_name_jiwangshi(cls, content):
         content = re.sub("<section name=\"既往史\" code=\"\" code-system=\"\"", "既往史", content)
+        return content
+
+    @classmethod
+    def extract_elem_name_keshi(cls, content):
+        content = re.sub("<fieldelem name=\"科室\" code=\"\" code-system=\"\">", "科室", content)
+        return content
+
+    @classmethod
+    def extract_content_from_one_record(cls, content):
         content = re.sub("code-system=\"\"", ">", content)
         pattern = re.compile(">{1,2}(.*?)<")
         return filter(lambda x: x, map(cls._clean_content, re.findall(pattern, content)))
@@ -121,40 +142,125 @@ class EMRAnalyzer(object):
                 break
         return ''.join(content[begin + 1:end])
 
+    @classmethod
+    def extract_BINGCHENGJILU(cls, content):
+        begin, end = 0, 0
+        for i, c in enumerate(content):
+            if '首次病程记录' in c:
+                begin = i
+            if begin > 0 and ('副主任医师' in c or '记录者' in c or '主任医师' in c or '诊疗计划' in c or '住院医师' in c):
+                end = i
+                break
+        return ''.join(content[begin + 1:end])
 
-def write_to_local(f, f_name, content):
-    f.write(f_name + '\t' + unicode(content).encode('utf-8') + CLRF)
+    @classmethod
+    def extract_KESHI(cls, content):
+        keshi = cls._extract_KESHI(content)
+        keshi = re.sub(u'[一二三四五六七八九十科]', '', keshi)
+        keshi = keshi.replace(u'病区', '').replace(u'住院','').replace(u'护士站', '').replace('：', '')
+        return keshi.strip()
 
-if __name__ == '__main__':
+    @classmethod
+    def _extract_KESHI(cls, content):
+        begin, end = 0, 0
+        if '患者入院病情评估表' in content or '出院证' in content or '出 院 证' in content:
+            for i, c in enumerate(content):
+                if '科室' in c:
+                    begin = i
+                    if '床号' in c:
+                        end = i
+                        break
+                if begin > 0 and ('床号' in c or '医师' in c):
+                    end = i
+                    break
+            if begin == end and begin > 0:  # 科室:住院核医学科  床号:
+                # 把标点转成str
+                return content[begin].replace("：", "").split("科室")[1].split("床号")[0]
+            elif begin + 1 == end:  # 科室:住院核医学科</text><text>床号:
+                return content[begin].replace(":", "").split("科室")[1]
+        return ''.join(content[begin + 1:end])
 
-    dir_name = '/Users/xiabofei/Documents/emr-record/2015'
-    nan_count = 0
-    emr_analyzer = EMRAnalyzer(dir_name)
 
-    with open('../data/output/extracted_zhenduan.dat', 'w') as f_zhenduan, \
-            open('../data/output/extracted_zhusu.dat', 'w') as f_zhusu, \
-            open('../data/output/extracted_xianbingshi.dat', 'w') as f_xianbingshi, \
-            open('../data/output/extracted_jiwangshi.dat', 'w') as f_jiwangshi, \
-            open('../data/output/extracted_gerenshi.dat', 'w') as f_gerenshi:
+
+
+
+
+def write_to_local(f, f_name, content, code4sort):
+    f.write('\t'.join([f_name, str(code4sort), unicode(content.replace('\t', '')).encode('utf-8')]) + CLRF)
+
+
+def extract_from_zhuyuanzhi(dir_name, emr_analyzer):
+    # extract data from '住院志'
+    print('extract from zhuyuanzhi')
+    with open('../data/output/1_extracted_zhenduan.dat', 'w') as f_zhenduan, \
+            open('../data/output/2_extracted_zhusu.dat', 'w') as f_zhusu, \
+            open('../data/output/3_extracted_xianbingshi.dat', 'w') as f_xianbingshi, \
+            open('../data/output/4_extracted_jiwangshi.dat', 'w') as f_jiwangshi, \
+            open('../data/output/5_extracted_gerenshi.dat', 'w') as f_gerenshi:
+        nan_zhenduan, nan_zhusu, nan_xianbingshi, nan_jiwangshi, nan_gerenshi = 0, 0, 0, 0, 0
         for it in emr_analyzer.emr_data_processor(emr_analyzer.content_iterator, emr_analyzer._filter_name):
             content, f_name = it[0], it[1]
             content = emr_analyzer.extract_content_from_one_record(content)
-            if content == '':
-                nan_count += 1
-            else:
+            if content != '':
                 # zhenduan
                 content_zhenduan = emr_analyzer.extract_ZHENDUAN(content)
-                write_to_local(f_zhenduan, f_name, content_zhenduan)
+                nan_zhenduan += 1 if content_zhenduan == '' else 0
+                write_to_local(f_zhenduan, f_name, content_zhenduan, 1)
                 # zhusu
                 content_zhusu = emr_analyzer.extract_ZHUSU(content)
-                write_to_local(f_zhusu, f_name, content_zhusu)
+                nan_zhusu += 1 if content_zhusu == '' else 0
+                write_to_local(f_zhusu, f_name, content_zhusu, 2)
                 # xianbingshi
                 content_xianbingshi = emr_analyzer.extract_XIANBINGSHI(content)
-                write_to_local(f_xianbingshi, f_name, content_xianbingshi)
+                nan_xianbingshi += 1 if content_xianbingshi == '' else 0
+                write_to_local(f_xianbingshi, f_name, content_xianbingshi, 3)
                 # jiwangshi
                 content_jiwangshi = emr_analyzer.extract_JIWANGSHI(content)
-                write_to_local(f_jiwangshi, f_name, content_jiwangshi)
+                nan_jiwangshi += 1 if content_jiwangshi == '' else 0
+                write_to_local(f_jiwangshi, f_name, content_jiwangshi, 4)
                 # gerenshi
                 content_gerenshi = emr_analyzer.extract_GERENSHI(content)
-                write_to_local(f_gerenshi, f_name, content_gerenshi)
+                nan_gerenshi += 1 if content_gerenshi == '' else 0
+                write_to_local(f_gerenshi, f_name, content_gerenshi, 5)
+
+
+def extract_from_qitawenjian(dir_name, emr_analyzer):
+    # extract from '其他文件'
+    print('extract from qitawenjian')
+    with open('../data/output/0_extracted_keshi.dat', 'w') as f_keshi:
+        nan_count = 0
+        cur_id = ''
+        for it in emr_analyzer.emr_data_processor(emr_analyzer.content_iterator, emr_analyzer._filter_name_qita):
+            content, f_name = it[0], it[1]
+            if f_name != cur_id:  # 同一个id有很多其他记录,找到一个含有科室的即可
+                content = emr_analyzer.extract_elem_name_keshi(content)
+                content = emr_analyzer.extract_content_from_one_record(content)
+                content_keshi = emr_analyzer.extract_KESHI(content)
+                nan_count += 1 if content_keshi == '' else 0
+                if content_keshi != '':
+                    cur_id = f_name
+                    write_to_local(f_keshi, f_name, content_keshi, 0)
         print nan_count
+
+
+def extract_from_bingchengjilu(dir_name, emr_analyzer):
+    # extract from '病程记录'
+    print('extract from bingchengjilu')
+    with open('../data/output/6_extracted_bingchengjilu.dat', 'w') as f_bingchengjilu:
+        nan_count = 0
+        for it in emr_analyzer.emr_data_processor(emr_analyzer.content_iterator, emr_analyzer._filter_name_bingcheng):
+            content, f_name = it[0], it[1]
+            content = emr_analyzer.extract_content_from_one_record(content)
+            if content != '':
+                content_bingchengjilu = emr_analyzer.extract_BINGCHENGJILU(content)
+                nan_count += 1 if content_bingchengjilu=='' else 0
+                write_to_local(f_bingchengjilu, f_name, content_bingchengjilu, 6)
+        print nan_count
+
+
+if __name__ == '__main__':
+    dir_name = '/Users/xiabofei/Documents/emr-record/2015'
+    emr_analyzer = EMRAnalyzer(dir_name)
+    extract_from_qitawenjian(dir_name, emr_analyzer)
+    # extract_from_zhuyuanzhi(dir_name, emr_analyzer)
+    # extract_from_bingchengjilu(dir_name, emr_analyzer)
