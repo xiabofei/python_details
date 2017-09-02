@@ -12,6 +12,8 @@ sys.setdefaultencoding('utf-8')
 
 CLRF = '\n'
 
+from ipdb import set_trace as st
+
 
 class EMRAnalyzer(object):
     def __init__(self, dir_name):
@@ -156,8 +158,8 @@ class EMRAnalyzer(object):
     @classmethod
     def extract_KESHI(cls, content):
         keshi = cls._extract_KESHI(content)
-        keshi = re.sub(u'[一二三四五六七八九十科]', '', keshi)
-        keshi = keshi.replace(u'病区', '').replace(u'住院','').replace(u'护士站', '').replace('：', '')
+        keshi = re.sub('一|二|三|四|五|六|七|八|九|十|科|病区|住院|护士站|东院|康馨', '', keshi)
+        keshi = keshi.replace('：', '').replace('、','')
         return keshi.strip()
 
     @classmethod
@@ -261,6 +263,6 @@ def extract_from_bingchengjilu(dir_name, emr_analyzer):
 if __name__ == '__main__':
     dir_name = '/Users/xiabofei/Documents/emr-record/2015'
     emr_analyzer = EMRAnalyzer(dir_name)
-    extract_from_qitawenjian(dir_name, emr_analyzer)
+    # extract_from_qitawenjian(dir_name, emr_analyzer)
     # extract_from_zhuyuanzhi(dir_name, emr_analyzer)
     # extract_from_bingchengjilu(dir_name, emr_analyzer)
