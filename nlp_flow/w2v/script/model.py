@@ -40,4 +40,5 @@ sentence_it = SentencesIterator(
 )
 
 
-model = gensim.models.Word2Vec(sentence_it, min_count=30, size=32, workers=4, window=2)
+# model = gensim.models.Word2Vec(sentence_it, min_count=30, size=32, workers=4, window=2)
+model = gensim.models.Word2Vec(sentence_it, sg=1, min_count=30, size=32, workers=4, window=2)
