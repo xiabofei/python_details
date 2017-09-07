@@ -3,7 +3,7 @@
 import gensim
 import logging
 
-from DataPrepare import SentencesIterator
+from cut_dis_icd import SentencesIterator
 
 logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)
 
@@ -16,7 +16,7 @@ sentences =  SentencesIterator(
     '../../data/output/word_frequency.pkl',
 )
 
-model = gensim.models.Word2Vec(sentences, min_count=5, size=100, workers=1)
+model = gensim.models.Word2Vec(sentences, min_count=1, size=10, workers=1)
 
 model.most_similar(u'子宫')
 

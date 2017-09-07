@@ -54,13 +54,17 @@ class MatchingICD(object):
         _filter_punctuation = [u'"', u'\'']
         for i in _filter_punctuation:
             content = content.replace(i, u'')
-
         return content
+
+    @staticmethod
+    def replace_trivial_head(content):
+        return re.sub("\d*\.", "", content)
 
     def parse_content_from_excel(self):
         content = pd.ExcelFile(self.input_excel_path)
         dis = content.parse(self.dis_sheet_name)[['dis', 'ICD-code']]
         dis['dis'] = dis['dis'].apply(self.replace_punctuation)
+        dis['dis'] = dis['dis'].apply(self.replace_trivial_head)
         icd10 = content.parse(self.icd10_sheet_name)[['ICD-desc', 'ICD-code']]
         icd10['ICD-desc'] = icd10['ICD-desc'].apply(self.replace_punctuation)
         # record data for display
@@ -140,7 +144,7 @@ class LoadCentralWords(object):
     def load_sheets(self):
         excel = pd.ExcelFile(self.input_path)
         self.central_words = \
-            excel.parse(self.central_words_sheet_name)[['TKBTRB_RowId', 'TKBTRB_Desc']]
+            excel.parse(self.central_words_sheet_name)[['TKBTRB_RowId', 'TKBTRB_Desc', 'TKBTRB_Base_DR']]
         self.central_words_nickname = \
             excel.parse(self.central_words_nickname_sheet_name)[['TKBTRC_TRE_Dr', 'TKBTRC_Desc']]
         self.subcategory_reference_words = \
@@ -150,6 +154,10 @@ class LoadCentralWords(object):
         central_words = defaultdict(list)
         for i in self.central_words.index:
             id, word = self.central_words.iloc[i]['TKBTRB_RowId'], self.central_words.iloc[i]['TKBTRB_Desc']
+            word_type = int(self.central_words.iloc[i]['TKBTRB_Base_DR'])
+            # if 'TKBTRB_Base_DR' is '9', it should be considered as '部位' not '中心词'
+            if word_type == 9:
+                continue
             central_words[id].append(word.encode('utf-8'))
         for i in self.central_words_nickname.index:
             foreign_id = self.central_words_nickname.iloc[i]['TKBTRC_TRE_Dr']
@@ -163,6 +171,15 @@ class LoadCentralWords(object):
                 self.subcategory_reference_words.iloc[i]['TKBTD_Desc'].encode('utf8'),
                 self.subcategory_reference_words.iloc[i]['ExtTypeDesc'].encode('utf8')
             )
+
+    def get_type9_region_words(self):
+        type9_region_words = []
+        for i in self.central_words.index:
+            word = self.central_words.iloc[i]['TKBTRB_Desc']
+            word_type = int(self.central_words.iloc[i]['TKBTRB_Base_DR'])
+            if word_type == 9:
+                type9_region_words.append(word.encode('utf-8'))
+        return set(type9_region_words)
 
 
 def central_word():
@@ -189,6 +206,9 @@ def central_word():
         for it in central_info.subcategory_reference_words_iterator():
             f_dict.write('\t'.join([GA.replace_punctuation(it[0]), '50']) + CLRF)
             f_category.write('\t'.join([GA.replace_punctuation(it[0]), GA.replace_punctuation(it[1])]) + CLRF)
+        for type9_region in central_info.get_type9_region_words():
+            f_dict.write('\t'.join([GA.replace_punctuation(type9_region), '50']) + CLRF)
+            f_category.write('\t'.join([GA.replace_punctuation(type9_region), '部位']) + CLRF)
 
 
 def dis_icd10():
@@ -212,5 +232,5 @@ def dis_icd10():
 
 
 if __name__ == '__main__':
-    dis_icd10()
     # central_word()
+    dis_icd10()

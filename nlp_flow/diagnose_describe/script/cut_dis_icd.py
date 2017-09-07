@@ -23,14 +23,14 @@ class SentencesIterator(object):
             usr_dict_path,
             usr_suggest_path,
             columns,
-            available_words_path,
+            stop_words_path,
             sep=',',
             HMM=False
     ):
         self.input_file_path = input_file_path
         self.__tuning_jieba(usr_dict_path, usr_suggest_path)
         self.columns = columns
-        self.available_words = self.__loading_available_words(available_words_path)
+        self.stop_words = set(w for w in self.__loading_available_words(stop_words_path))
         self.sep = sep
         self.HMM = HMM
 
@@ -55,20 +55,10 @@ class SentencesIterator(object):
             else:
                 raise TypeError('usr_suggest_path %s wrong type' % usr_suggest_path)
 
-
-    def if_available(self, term):
-        return term in self.available_words
-
     def __loading_available_words(self, path):
-        if path:
-            available_words = []
             with open(path, 'rb') as f:
-                word_frequency = cPickle.load(f)
-                assert type(word_frequency) == dict
-                for k, _ in sorted(word_frequency.items(), key=lambda x: x[1]):
-                    available_words.append(k)
-                return set(available_words)
-        return None
+                for l in f.readlines():
+                    yield
 
     def __iter__(self):
         for df in pd.read_csv(self.input_file_path, chunksize=50000, sep=self.sep):
@@ -77,8 +67,8 @@ class SentencesIterator(object):
                     df.loc[i, self.columns[0]],
                     [GA.replace_punctuation, GA.negative_positive, GA.clear_trivial_head]
                 )
-                if self.available_words:
-                    yield filter(self.if_available, [k for k in jieba.cut(sentence, HMM=self.HMM)])
+                if self.stop_words:
+                    yield filter(lambda x:x not in self.stop_words, [k for k in jieba.cut(sentence, HMM=self.HMM)])
                 else:
                     yield [k for k in jieba.cut(sentence, HMM=self.HMM)]
 
@@ -91,7 +81,7 @@ def main_dis_icd10():
             '../data/output/domain_dict/subcategory_reference_word_dict.csv',
             '../data/output/domain_dict/manual_word_dict.csv'
         ],
-        None,
+        '../data/output/domain_dict/stop_words.csv',
         ['icd-desc', 'icd-code'],
         None,
         '\t',
@@ -104,7 +94,7 @@ def main_dis_icd10():
             '../data/output/domain_dict/subcategory_reference_word_dict.csv',
             '../data/output/domain_dict/manual_word_dict.csv'
         ],
-        None,
+        '../data/output/domain_dict/stop_words.csv',
         ['icd-desc', 'icd-code'],
         None,
         '\t',
