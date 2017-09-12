@@ -65,28 +65,35 @@ class SentencesIterator(object):
     def remove_dis_digits(dis):
         return re.sub("\d*[.,]", "", dis)
 
+    def pre_addressing(self, content):
+        sentence = GA.execute_general_addressing(
+            content,
+            [
+                GA.replace_punctuation, GA.negative_positive, GA.clear_trivial_head,
+                self.remove_dis_digits
+            ]
+        )
+        return sentence
+
+    def word_seg(self, sentence):
+        if self.stop_words:
+            return filter(lambda x: x not in self.stop_words, [k for k in jieba.cut(sentence, HMM=self.HMM)])
+        else:
+            return [k for k in jieba.cut(sentence, HMM=self.HMM)]
+
     def __iter__(self):
-        for df in pd.read_csv(self.input_file_path, chunksize=50000, sep=self.sep):
+        for df in pd.read_csv(self.input_file_path, chunksize=100000, sep=self.sep):
+            df = df.reset_index(drop=True)
+            df[df.columns[0]] = df[df.columns[0]].astype('object').apply(self.pre_addressing)
+            df[df.columns[0]] = df[df.columns[0]].astype('object').apply(self.word_seg)
             for i in df.index:
-                sentence = GA.execute_general_addressing(
-                    df.loc[i, self.columns[0]],
-                    [
-                        GA.replace_punctuation, GA.negative_positive, GA.clear_trivial_head,
-                        self.remove_dis_digits
-                    ]
-                )
-                if self.stop_words:
-                    yield filter(lambda x: x not in self.stop_words, [k for k in jieba.cut(sentence, HMM=self.HMM)])
-                else:
-                    yield [k for k in jieba.cut(sentence, HMM=self.HMM)]
+                yield df.iloc[i][df.columns[0]]
 
 
 def main_dis_icd10():
     dis_sentence_iterator = SentencesIterator(
         '../data/output/extract_from_excel/dis.csv',
         [
-            # '../data/output/domain_dict/annotated_dict.csv',
-            # '../data/output/domain_dict/fixed_annotated_dict.csv',
             '../data/output/domain_dict/snowball_dict.csv',
         ],
         None,
@@ -98,8 +105,6 @@ def main_dis_icd10():
     icd10_sentence_iterator = SentencesIterator(
         '../data/output/extract_from_excel/icd10.csv',
         [
-            # '../data/output/domain_dict/annotated_dict.csv',
-            # '../data/output/domain_dict/fixed_annotated_dict.csv',
             '../data/output/domain_dict/snowball_dict.csv',
         ],
         None,
@@ -116,15 +121,13 @@ def main_dis_icd10():
         for l in f_in.readlines():
             try:
                 w, c = l.split('\t')[0].strip().replace('其他', ''), l.split('\t')[1].strip()
-                # w, c = l.split('\t')[0].strip(), l.split('\t')[1].strip()
                 if w:
                     word_category[w.decode('utf8')] = c.decode('utf8')
             except Exception, e:
-                st(context=21)
                 print e
 
     # manually fix suffix words and trick new dict
-    suffix_words = (u'病', u'症', u'后', u'型', u'期', u'史', u'程', u'级', u'性', u'区', u'周', u'天',u'方案')
+    suffix_words = (u'病', u'症', u'后', u'型', u'期', u'史', u'程', u'级', u'性', u'区', u'周', u'天', u'方案')
 
     def connect_suffix_word(sentence, word_category, f_dict, f_category):
         ret = []
@@ -186,14 +189,14 @@ def main_dis_icd10():
             hit_count += hit
             all_count += len(sentence)
             f_dis.write('/'.join(sentence).encode('utf-8') + CLRF)
-        print('[DIS] hit_count / all_count = %s / %s = %s'%(hit_count, all_count, hit_count*1.0/all_count))
+        print('[DIS] hit_count / all_count = %s / %s = %s' % (hit_count, all_count, hit_count * 1.0 / all_count))
         all_count, hit_count = 0, 0
         for sentence in icd10_sentence_iterator:
             sentence, hit = connect_suffix_word(sentence, word_category, trick_dict, trick_category)
             hit_count += hit
             all_count += len(sentence)
             f_icd10.write('/'.join(sentence).encode('utf-8') + CLRF)
-        print('[ICD10] hit_count / all_count = %s / %s = %s'%(hit_count, all_count, hit_count*1.0/all_count))
+        print('[ICD10] hit_count / all_count = %s / %s = %s' % (hit_count, all_count, hit_count * 1.0 / all_count))
         f_trick_dict.write(CLRF.join(set(trick_dict)))
         f_trick_category.write(CLRF.join(set(trick_category)))
 
