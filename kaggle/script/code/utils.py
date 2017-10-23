@@ -2,6 +2,19 @@
 
 from ipdb import set_trace as st
 
+import numpy as np
+
+
+def ps_reg_03_recon(reg):
+    integer = int(np.round((40 * reg) ** 2))
+    for f in range(28):
+        if (integer - f) % 27 == 0:
+            F = f
+            break
+    M = (integer - F) // 27
+    return F, M
+
+
 def reset_parameter(**kwargs):
     def callback(env):
         new_parameters = {}

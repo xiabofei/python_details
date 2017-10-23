@@ -22,7 +22,7 @@ class GiniEvaluation(object):
     def gini_xgb(cls, preds, dtrain):
         labels = dtrain.get_label()
         gini_score = cls.gini_normalized(labels, preds)
-        return [('gini', -1* gini_score)]
+        return [('gini', gini_score)]
 
     @classmethod
     def gini_lgb(cls, preds, dtrain):
