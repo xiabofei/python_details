@@ -22,5 +22,5 @@ def ensemble_by_rank_averaging(root_dir, sub_path_list):
 
 if __name__ == '__main__':
     root_dir = '../../data/output/lucky_ensemble/'
-    sub_path_list = ['sub_xgb.csv', 'sub_1.csv']
+    sub_path_list = ['sub_xgb_1.csv','sub_xgb_1.csv','sub_xgb_1.csv', 'sub_xgb_2.csv', 'sub_lgbm.csv']
     ensemble_by_rank_averaging(root_dir, sub_path_list)

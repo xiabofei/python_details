@@ -72,9 +72,9 @@ gc.collect()
 def cv_by_lgbm():
     params = {
         'metric': 'auc',
-        'learning_rate': 0.03,
+        'learning_rate': 0.02,
         'max_depth': 6,
-        'num_leaves': 48,
+        'num_leaves': 51,
         'min_data_in_leaf': 500,
         'max_bin': 10,
         'objective': 'binary',
@@ -87,7 +87,7 @@ def cv_by_lgbm():
     skf = StratifiedKFold(n_splits=N, shuffle=True, random_state=np.random.randint(2017))
     folds = skf.split(X, y)
     dtrain = lgb.Dataset(data=X, label=y)
-    num_boost_round = 20
+    num_boost_round = 2000
     bst = lgb.cv(
         params=params,
         train_set=dtrain,
@@ -96,8 +96,8 @@ def cv_by_lgbm():
         num_boost_round=num_boost_round,
         metrics=['auc'],
         feval=GiniEvaluation.gini_lgb,
-        early_stopping_rounds=5,
-        verbose_eval=2,
+        early_stopping_rounds=50,
+        verbose_eval=20,
     )
     best_rounds = np.argmax(bst['gini-mean']) + 1
     best_val_score = np.max(bst['gini-mean'])
@@ -113,14 +113,12 @@ def cv_by_lgbm():
             num_boost_round=best_rounds,
             feval=GiniEvaluation.gini_lgb,
             early_stopping_rounds=50,
-            verbose_eval=2,
+            verbose_eval=20,
         )
-        st(context=21)
-        print('model best iteration {0}'.format(model.best_iteration))
-        num_iteration = model.best_iteration
-        if model.best_iteration == 0:
-            num_iteration = model.current_iteration()
-        print('predict use number of iteration {0}'.format(num_iteration))
+        gini_scores = [item[1][2] for item in eval_records if item[1][1] == 'gini']
+        num_iteration = np.argmax(gini_scores) + 1
+        best_score = np.max(gini_scores)
+        print('model best iteration {0} with gini score {1}'.format(num_iteration, best_score))
         sub['target'] += model.predict(test.values, num_iteration=num_iteration)
         model.save_model('../../data/model/lgbm_{0}'.format(i), num_iteration)
     print('{0} of models ensemble'.format(N))
@@ -133,16 +131,16 @@ def cv_by_xgb():
     params = {
         'objective': 'binary:logistic',
         'eval_metric': 'logloss',
-        'eta': 0.04,
-        'subsample': 0.6,
-        'colsample_bytree': 0.3,
+        'eta': 0.02,
+        'subsample': 0.7,
+        'colsample_bytree': 0.7,
         'max_depth': 6,
         'min_child_weight': 8,
         'nthread': -1,
         'silent': 1,
         'alpha': 0.001,
         'gamma': 0.01,
-        'seed': 2017
+        'seed': 2016
     }
     ## cross validation
     N = 5
