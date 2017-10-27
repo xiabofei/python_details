@@ -136,7 +136,7 @@ def cv_by_xgb():
         'colsample_bytree': 0.7,
         'max_depth': 6,
         'min_child_weight': 8,
-        'nthread': -1,
+        'nthread': 10,
         'silent': 1,
         'alpha': 0.001,
         'gamma': 0.01,
