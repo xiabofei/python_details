@@ -58,56 +58,16 @@ gc.collect()
 ## kfolds
 N = 5
 skf = StratifiedKFold(n_splits=N, shuffle=True, random_state=2017)
-folds = skf.split(X, y)
 
 ## Grid Search
 # lightGBM
-# step1. search for n_estimators
-params_for_n_estimators = {
-    'metric': 'auc',
-    'objective': 'binary',
-    'learning_rate': 0.05,
-    'max_depth': 5,
-    'num_leaves': 31,
-    'bagging_fraction': 0.8,
-    'bagging_freq': 1,
-    'feature_fraction': 0.8,
-    'verbose': -1,
-}
-n_estimators = 2000
-bst = lgbm.cv(
-    params=params_for_n_estimators,
-    train_set=lgbm.Dataset(data=X, label=y),
-    folds=folds,
-    num_boost_round=n_estimators,
-    metrics=['auc'],
-    feval=GiniEvaluation.gini_lgb,
-    early_stopping_rounds=50,
-    verbose_eval=20,
-)
-best_rounds = np.argmax(bst['gini-mean']) + 1
-best_val_score = np.max(bst['gini-mean'])
-st(context=21)
+'''
 lgbm_param = dict(
-    boosting_type='gbdt',
-    num_leaves=61,
-    max_depth=6,
-    learning_rate=0.05,
-    n_estimators=10,
-    max_bin=500,
-    subsample_for_bin=50000,
-    objective='binary',
-    min_split_gain=0.1,
-    min_child_weight=5,
-    min_child_samples=10,
-    subsample=0.6,
-    subsample_freq=1,
-    colsample_bytree=0.6,
-    reg_alpha=0.01,
-    reg_lambda=0.01,
-    random_state=0,
-    n_jobs=-1,
-    silent=True,
+    boosting_type='gbdt', num_leaves=61, max_depth=6, learning_rate=0.05,
+    n_estimators=10, max_bin=500, subsample_for_bin=50000, objective='binary',
+    min_split_gain=0.1, min_child_weight=5, min_child_samples=10, subsample=0.6,
+    subsample_freq=1, colsample_bytree=0.6, reg_alpha=0.01, reg_lambda=0.01,
+    random_state=0, n_jobs=-1, silent=True,
     early_stopping_rounds=50,
     verbose_eval=10,
 )
@@ -126,7 +86,9 @@ lgbm_gs = GridSearchCV(
     n_jobs=1,
 )
 lgbm_gs.fit(X, y)
+'''
 # xgboost tuning
+# step1. n_estimators
 '''
 params_for_n_estimators = {
     'objective': 'binary:logistic',
@@ -152,45 +114,44 @@ bst = xgb.cv(
 )
 best_rounds = np.argmax(bst['test-gini-mean'])
 logging.info('best n_estimator {0} at {1}'.format(best_rounds, params_for_n_estimators))
+'''
 xgb_param = dict(
     # target
     objective='binary:logistic',
     # booster parameters
     booster='gbtree',
-    n_estimators=312,
+    n_estimators=10,
     # tree-based parameters
     max_depth=5,
-    min_child_weight=1,
-    gamma=0,
-    subsample=0.8,
-    colsample_bytree=0.8,
+    min_child_weight=9,
+    gamma=0.4,
+    subsample=0.9,
+    colsample_bytree=0.5,
     colsample_bylevel=1,
     scale_pos_weight=1,
     max_delta_step=0,
     # regularization parameters
-    reg_alpha=0,
-    reg_lambda=1,
+    reg_alpha=1e-4,
+    reg_lambda=20,
     # learning rate
     learning_rate=0.05,
     # others
-    n_jobs=1,
+    n_jobs=2,
     nthread=None,
     base_score=0.5,
     random_state=0,
     seed=2017,
     missing=None,
-    early_stopping_rounds=50,
-    verbose_eval=10,
+    early_stopping_rounds=5,
+    verbose_eval=1,
 )
 xgb_param_grid = dict(
-    max_depth=range(3,10,2),
-    min_child_weight=range(1,6,2),
+    reg_lambda=[15, 25],
 )
 xgb_estimator = xgb.XGBClassifier(**xgb_param)
 xgb_gs = GridSearchCV(
     estimator=xgb_estimator, param_grid=xgb_param_grid, cv=skf,
     scoring=make_scorer(gini_score, greater_is_better=True, needs_proba=True),
-    verbose=2, n_jobs=10,
+    verbose=2, n_jobs=6, refit=False
 )
 xgb_gs.fit(X, y)
-'''

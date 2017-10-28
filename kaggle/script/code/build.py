@@ -68,23 +68,23 @@ y = y.values
 
 gc.collect()
 
+lgb.LGBMRanker()
 
 def cv_by_lgbm():
     params = {
-        'metric': 'auc',
-        'learning_rate': 0.02,
+        'learning_rate': 0.03,
         'max_depth': 6,
         'num_leaves': 51,
         'min_data_in_leaf': 500,
         'max_bin': 10,
-        'objective': 'binary',
-        'feature_fraction': 0.6,
-        'bagging_fraction': 0.6,
-        'bagging_freq': 10,
+        'objective': 'ndcg',
+        'feature_fraction': 0.8,
+        'bagging_fraction': 0.8,
+        'bagging_freq': 1,
         'verbose': -1,
     }
     N = 5
-    skf = StratifiedKFold(n_splits=N, shuffle=True, random_state=np.random.randint(2017))
+    skf = StratifiedKFold(n_splits=N, shuffle=True, random_state=2017)
     folds = skf.split(X, y)
     dtrain = lgb.Dataset(data=X, label=y)
     num_boost_round = 2000
@@ -94,7 +94,7 @@ def cv_by_lgbm():
         folds=folds,
         stratified=True,
         num_boost_round=num_boost_round,
-        metrics=['auc'],
+        metrics=['ndcg'],
         feval=GiniEvaluation.gini_lgb,
         early_stopping_rounds=50,
         verbose_eval=20,
@@ -131,34 +131,35 @@ def cv_by_xgb():
     params = {
         'objective': 'binary:logistic',
         'eval_metric': 'logloss',
-        'eta': 0.02,
-        'subsample': 0.7,
-        'colsample_bytree': 0.7,
-        'max_depth': 6,
-        'min_child_weight': 8,
-        'nthread': 10,
+        'eta': 0.05,
+        'max_depth': 5,
+        'min_child_weight': 9,
+        'gamma': 0.4,
+        'subsample': 0.9,
+        'colsample_bytree': 0.5,
+        'alpha': 1e-4,
+        'lambda': 20,
+        'seed': 2017,
+        'nthread': 6,
         'silent': 1,
-        'alpha': 0.001,
-        'gamma': 0.01,
-        'seed': 2016
     }
     ## cross validation
     N = 5
-    skf = StratifiedKFold(n_splits=N, shuffle=True, random_state=np.random.randint(2017))
+    skf = StratifiedKFold(n_splits=N, shuffle=True, random_state=2017)
     folds = skf.split(X, y)
     dtrain = xgb.DMatrix(data=X, label=y)
-    num_boost_round = 2000
+    num_boost_round = 312
     bst = xgb.cv(
-        params,
-        dtrain,
-        num_boost_round,
-        N,
+        params=params,
+        dtrain=dtrain,
+        num_boost_round=num_boost_round,
+        nfold=N,
         feval=GiniEvaluation.gini_xgb,
         maximize=True,
         metrics=['auc'],
         folds=folds,
         early_stopping_rounds=50,
-        verbose_eval=10
+        verbose_eval=5,
     )
     best_rounds = np.argmax(bst['test-gini-mean'])
     train_score = bst['train-gini-mean'][best_rounds]
@@ -190,5 +191,5 @@ def cv_by_xgb():
     print('XGBoost done')
 
 
-cv_by_lgbm()
-# cv_by_xgb()
+# cv_by_lgbm()
+cv_by_xgb()

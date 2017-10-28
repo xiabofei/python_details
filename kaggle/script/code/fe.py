@@ -47,6 +47,9 @@ class Processer(object):
         return df
 
     @staticmethod
+    def
+
+    @staticmethod
     def ohe(df_train, df_test, cat_features):
         # pay attention train & test should get_dummies together
         logging.info('Before ohe : train {0}, test {1}'.format(df_train.shape, df_test.shape))
@@ -59,5 +62,6 @@ class Processer(object):
         test = combine[df_train.shape[0]:]
         logging.info('After ohe : train {0}, test {1}'.format(train.shape, test.shape))
         return train, test
+
 
 
