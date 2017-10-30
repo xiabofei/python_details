@@ -38,6 +38,8 @@ df_test.drop(['id'], axis=1, inplace=True)
 # build train data process pipeline and test data process pipeline
 common_transforms_params = [
     (Processer.drop_columns, dict(col_names=df_train.columns[df_train.columns.str.startswith('ps_calc_')])),
+    (Processer.descartes, dict(left_col_names=['ps_car_13'], right_col_names=['ps_reg_03'])),
+    (Processer.median_mean_range, dict(opt_median=True, opt_mean=True)),
     (Processer.dtype_transform, dict()),
 ]
 train_specific = []
@@ -120,7 +122,7 @@ xgb_param = dict(
     objective='binary:logistic',
     # booster parameters
     booster='gbtree',
-    n_estimators=10,
+    n_estimators=500,
     # tree-based parameters
     max_depth=5,
     min_child_weight=9,
@@ -128,7 +130,7 @@ xgb_param = dict(
     subsample=0.9,
     colsample_bytree=0.5,
     colsample_bylevel=1,
-    scale_pos_weight=1,
+    scale_pos_weight=0.41,
     max_delta_step=0,
     # regularization parameters
     reg_alpha=1e-4,
@@ -137,7 +139,6 @@ xgb_param = dict(
     learning_rate=0.05,
     # others
     n_jobs=2,
-    nthread=None,
     base_score=0.5,
     random_state=0,
     seed=2017,
@@ -146,7 +147,7 @@ xgb_param = dict(
     verbose_eval=1,
 )
 xgb_param_grid = dict(
-    reg_lambda=[15, 25],
+    colsample_bytree=[0.49],
 )
 xgb_estimator = xgb.XGBClassifier(**xgb_param)
 xgb_gs = GridSearchCV(

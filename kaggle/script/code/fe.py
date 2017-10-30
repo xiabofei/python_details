@@ -2,6 +2,8 @@
 import pandas as pd
 import numpy as np
 import logging
+import gc
+
 
 class Compose(object):
     def __init__(self, transforms_params):
@@ -15,7 +17,6 @@ class Compose(object):
 
 
 class Processer(object):
-
     @staticmethod
     def drop_columns(df, col_names):
         logging.info('Before drop columns {0}'.format(df.shape))
@@ -47,7 +48,41 @@ class Processer(object):
         return df
 
     @staticmethod
-    def
+    def descartes(df, left_col_names, right_col_names):
+        logging.info('Before descartes transform {0}'.format(df.shape))
+        # check col_names
+        for col_name in left_col_names + right_col_names:
+            if col_name not in df.columns:
+                raise ValueError('col_name {0} not in df'.format(col_name))
+        # create new columns by descartes
+        descartes_columns = []
+        for l_col_name in left_col_names:
+            for r_col_name in right_col_names:
+                descartes_name = '_x_'.join([l_col_name, r_col_name])
+                descartes_columns.append(descartes_name)
+                df[descartes_name] = df[l_col_name] * df[r_col_name]
+        logging.info('After descartes transform {0}'.format(df.shape))
+        logging.info('New created descartes columns {0}'.format(descartes_columns))
+        return df
+
+    @staticmethod
+    def median_mean_range(df, opt_median=True, opt_mean=True):
+        col_names = [ c for c in df.columns if ('_bin' not in c and '_cat' not in c) ]
+        logging.info('Columns be median range and mean range transformed {0}'.format(col_names))
+        logging.info('Before {0}'.format(df.shape))
+        if opt_median:
+            _df_median = df[col_names].median(axis=0)
+            for col_name in col_names:
+                created_col_name = '_'.join([col_name, 'median_range'])
+                df[created_col_name] = (df[col_name] > _df_median[col_name]).astype(np.int8)
+        if opt_mean:
+            _df_mean = df[col_names].mean(axis=0)
+            for col_name in col_names:
+                created_col_name = '_'.join([col_name, 'mean_range'])
+                df[created_col_name] = (df[col_name] > _df_mean[col_name]).astype(np.int8)
+        gc.collect()
+        logging.info('After {0}'.format(df.shape))
+        return df
 
     @staticmethod
     def ohe(df_train, df_test, cat_features):
@@ -62,6 +97,3 @@ class Processer(object):
         test = combine[df_train.shape[0]:]
         logging.info('After ohe : train {0}, test {1}'.format(train.shape, test.shape))
         return train, test
-
-
-
