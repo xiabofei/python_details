@@ -184,6 +184,7 @@ def cv_by_xgb():
             early_stopping_rounds=50,
             verbose_eval=10,
         )
+        cv_model.get_fscore()
         sub['target'] += cv_model.predict(dtest, ntree_limit=best_rounds)
     print('{0} of models ensemble'.format(N))
     sub['target'] = sub['target'] / N

@@ -1,7 +1,7 @@
 # encoding=utf8
 import pandas as pd
 import numpy as np
-from fe import Processer, Compose
+from fe import Processer, Compose, FeatureImportance
 
 import xgboost as xgb
 import lightgbm as lgbm
@@ -38,8 +38,20 @@ df_test.drop(['id'], axis=1, inplace=True)
 # build train data process pipeline and test data process pipeline
 common_transforms_params = [
     (Processer.drop_columns, dict(col_names=df_train.columns[df_train.columns.str.startswith('ps_calc_')])),
-    (Processer.descartes, dict(left_col_names=['ps_car_13'], right_col_names=['ps_reg_03'])),
-    (Processer.median_mean_range, dict(opt_median=True, opt_mean=True)),
+    # (Processer.drop_columns, dict(col_names=['ps_ind_10_bin', 'ps_ind_11_bin', 'ps_ind_12_bin', 'ps_ind_13_bin'])),
+    # (
+    #     Processer.descartes_interaction,
+    #     dict(col_names=['ps_car_13','ps_ind_03','ps_ind_17_bin'])
+    # ),
+    # (
+    #     Processer.descartes,
+    #     dict(
+    #         left_col_names=['ps_car_13','ps_ind_03','ps_ind_17_bin'],
+    #         right_col_names=['ps_reg_03','ps_reg_02', 'ps_reg_01']
+    #     )
+    # ),
+    # (Processer.median_mean_range, dict(opt_median=True, opt_mean=True)),
+    (Processer.negative_one_vals, dict()),
     (Processer.dtype_transform, dict()),
 ]
 train_specific = []
@@ -51,6 +63,30 @@ logging.info('Transform test data')
 df_test = Compose(common_transforms_params + test_specific)(df_test)
 # execute ohe
 df_train, df_test = Processer.ohe(df_train, df_test, [a for a in df_train.columns if a.endswith('cat')])
+
+# fast feature importance evaluation by xgboost
+params_for_fi = {
+    'objective': 'binary:logistic',
+    'eval_metric': 'logloss',
+    'eta': 0.05,
+    'max_depth': 5,
+    'subsample': 0.9,
+    'colsample_bytree': 0.9,
+    'seed': 2017,
+    'nthread': 6,
+    'silent': 1,
+}
+df_feature_importance = FeatureImportance.xgb_fi(
+    params=params_for_fi,
+    data = df_train,
+    label = df_y,
+    feval=GiniEvaluation.gini_xgb,
+    maximize=True,
+    num_boost_round=100,
+    cv=True,
+)
+st(context=21)
+
 # feature and label for train
 X = df_train.values
 y = df_y.values

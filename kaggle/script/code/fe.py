@@ -3,6 +3,57 @@ import pandas as pd
 import numpy as np
 import logging
 import gc
+import operator
+from sklearn.model_selection import train_test_split, StratifiedKFold
+from sklearn.preprocessing import MinMaxScaler
+
+import xgboost as xgb
+import lightgbm as lgbm
+
+from ipdb import set_trace as st
+
+
+class FeatureImportance(object):
+    @staticmethod
+    def xgb_fi(params, data, label, feval, maximize, num_boost_round, cv=False):
+        if not cv:
+            dtrn, deval, ltrn, leval = train_test_split(data, label, test_size=0.25, shuffle=True, random_state=99)
+            trainD = xgb.DMatrix(data=dtrn, label=ltrn.values)
+            evalD = xgb.DMatrix(data=deval, label=leval.values)
+            cv_model = xgb.train(
+                params=params,
+                dtrain=trainD,
+                evals=[(trainD, 'train'), (evalD, 'valid')],
+                num_boost_round=num_boost_round,
+                feval=feval,
+                maximize=maximize,
+                verbose_eval=1,
+            )
+            importance = cv_model.get_fscore()
+            importance = sorted(importance.items(), key=operator.itemgetter(1), reverse=True)
+            df = pd.DataFrame(importance, columns=['feature', 'fscore'])
+            df['fscore'] = df['fscore'] / df['fscore'].sum()
+            return df
+        else:
+            N = 5
+            skf = StratifiedKFold(n_splits=N, shuffle=True, random_state=2017)
+            folds = skf.split(data, label)
+            bst = xgb.cv(
+                params=params,
+                dtrain=xgb.DMatrix(data=data, label=label),
+                num_boost_round=num_boost_round,
+                nfold=N,
+                feval=feval,
+                maximize=True,
+                metrics=['auc'],
+                folds=folds,
+                early_stopping_rounds=50,
+                verbose_eval=5,
+            )
+            return bst
+
+    def lgbm_fi(self, dtrain, params, feature_list):
+        pass
 
 
 class Compose(object):
@@ -66,8 +117,28 @@ class Processer(object):
         return df
 
     @staticmethod
+    def descartes_interaction(df, col_names):
+        logging.info('Before descartes interaction transform {0}'.format(df.shape))
+        # check col_names
+        for col_name in col_names:
+            if col_name not in df.columns:
+                raise ValueError('col_name {0} not in df'.format(col_name))
+        # create new columns by descartes interaction
+        if len(col_names) > 1:
+            for index in range(len(col_names) - 1):
+                df = Processer.descartes(
+                    df,
+                    left_col_names=[col_names[index]],
+                    right_col_names=col_names[index + 1:]
+                )
+        else:
+            logging.warn('descartes interaction only with one column {0}'.format(col_names[0]))
+        logging.info('After descartes interaction transform {0}'.format(df.shape))
+        return df
+
+    @staticmethod
     def median_mean_range(df, opt_median=True, opt_mean=True):
-        col_names = [ c for c in df.columns if ('_bin' not in c and '_cat' not in c) ]
+        col_names = [c for c in df.columns if ('_bin' not in c and '_cat' not in c and 'negative_one' in c)]
         logging.info('Columns be median range and mean range transformed {0}'.format(col_names))
         logging.info('Before {0}'.format(df.shape))
         if opt_median:
@@ -85,12 +156,17 @@ class Processer(object):
         return df
 
     @staticmethod
+    def negative_one_vals(df):
+        df['negative_one_vals'] = MinMaxScaler().fit_transform(df.isnull().sum(axis=1).values.reshape(-1,1))
+        return df
+
+    @staticmethod
     def ohe(df_train, df_test, cat_features):
         # pay attention train & test should get_dummies together
         logging.info('Before ohe : train {0}, test {1}'.format(df_train.shape, df_test.shape))
         combine = pd.concat([df_train, df_test], axis=0)
         for column in cat_features:
-            temp = pd.get_dummies(pd.Series(combine[column]))
+            temp = pd.get_dummies(pd.Series(combine[column]), prefix=column)
             combine = pd.concat([combine, temp], axis=1)
             combine = combine.drop([column], axis=1)
         train = combine[:df_train.shape[0]]
