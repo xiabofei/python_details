@@ -35,11 +35,10 @@ class GiniEvaluation(object):
         return [('gini', gini_score)]
 
     @classmethod
-    def gini_lgb(cls, preds, dtrain):
+    def gini_lgbm(cls, preds, dtrain):
         labels = dtrain.get_label()
         gini_score = cls.gini_normalized(labels, preds)
         return [('gini', gini_score, True)]
-
 
 
 def gini_score(a, p):

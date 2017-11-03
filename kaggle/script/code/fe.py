@@ -6,6 +6,7 @@ import gc
 import operator
 from sklearn.model_selection import train_test_split, StratifiedKFold
 from sklearn.preprocessing import MinMaxScaler
+from collections import OrderedDict
 
 import xgboost as xgb
 import lightgbm as lgbm
@@ -20,7 +21,7 @@ class FeatureImportance(object):
             dtrn, deval, ltrn, leval = train_test_split(data, label, test_size=0.25, shuffle=True, random_state=99)
             trainD = xgb.DMatrix(data=dtrn, label=ltrn.values)
             evalD = xgb.DMatrix(data=deval, label=leval.values)
-            cv_model = xgb.train(
+            model = xgb.train(
                 params=params,
                 dtrain=trainD,
                 evals=[(trainD, 'train'), (evalD, 'valid')],
@@ -29,7 +30,7 @@ class FeatureImportance(object):
                 maximize=maximize,
                 verbose_eval=1,
             )
-            importance = cv_model.get_fscore()
+            importance = model.get_fscore()
             importance = sorted(importance.items(), key=operator.itemgetter(1), reverse=True)
             df = pd.DataFrame(importance, columns=['feature', 'fscore'])
             df['fscore'] = df['fscore'] / df['fscore'].sum()
@@ -38,7 +39,7 @@ class FeatureImportance(object):
             N = 5
             skf = StratifiedKFold(n_splits=N, shuffle=True, random_state=2017)
             folds = skf.split(data, label)
-            bst = xgb.cv(
+            cv_records = xgb.cv(
                 params=params,
                 dtrain=xgb.DMatrix(data=data, label=label),
                 num_boost_round=num_boost_round,
@@ -50,10 +51,35 @@ class FeatureImportance(object):
                 early_stopping_rounds=50,
                 verbose_eval=5,
             )
-            return bst
+            return cv_records
 
-    def lgbm_fi(self, dtrain, params, feature_list):
-        pass
+    @staticmethod
+    def lgbm_fi(params, df_data, df_label, feval, num_boost_round,feature_watch_list):
+            dtrn, deval, ltrn, leval = \
+                train_test_split(df_data, df_label, test_size=0.25, shuffle=True, random_state=99)
+            model = lgbm.train(
+                params=params,
+                train_set=lgbm.Dataset(data=dtrn.values, label=ltrn.values),
+                valid_sets=lgbm.Dataset(data=deval.values, label=leval.values),
+                num_boost_round=num_boost_round,
+                feval=feval,
+                early_stopping_rounds=50,
+                verbose_eval=1,
+            )
+            feature_importance = MinMaxScaler().fit_transform(model.feature_importance().reshape(-1, 1))
+            feature_importance = OrderedDict(
+                sorted(
+                    {name:score[0] for name,score in zip(df_data.columns, feature_importance)}.items(),
+                    key=lambda x:x[1],
+                )
+            )
+            for feature in feature_watch_list:
+                corr = df_data.corrwith(df_data[feature])
+                corr.sort_values(inplace=True)
+                logging.info('feature \'{0}\' score \'{1}\''.format(feature, feature_importance[feature]))
+                logging.info('feature \'{0}\' correlation top10 \'{1}\''.format(feature, corr[0:10]))
+                logging.info('feature \'{0}\' correlation bottom10 \'{1}\''.format(feature, corr[-10:]))
+            return feature_importance
 
 
 class Compose(object):
@@ -138,7 +164,7 @@ class Processer(object):
 
     @staticmethod
     def median_mean_range(df, opt_median=True, opt_mean=True):
-        col_names = [c for c in df.columns if ('_bin' not in c and '_cat' not in c and 'negative_one' in c)]
+        col_names = [c for c in df.columns if ('_bin' not in c and '_oh_' not in c and 'negative_one' not in c and '_x_' not in c)]
         logging.info('Columns be median range and mean range transformed {0}'.format(col_names))
         logging.info('Before {0}'.format(df.shape))
         if opt_median:
@@ -161,6 +187,21 @@ class Processer(object):
         return df
 
     @staticmethod
+    def convert_reg_03(df):
+        def ps_reg_03_recon(reg):
+            integer = int(np.round((40 * reg) ** 2))
+            for f in range(28):
+                if (integer - f) % 27 == 0:
+                    F = f
+                    break
+            M = (integer - F) // 27
+            return F, M
+        df['ps_reg_A'] = df['ps_reg_03'].apply(lambda x: ps_reg_03_recon(x)[0] if not np.isnan(x) else x)
+        df['ps_reg_M'] = df['ps_reg_03'].apply(lambda x: ps_reg_03_recon(x)[1] if not np.isnan(x) else x)
+        return df
+
+
+    @staticmethod
     def ohe(df_train, df_test, cat_features):
         # pay attention train & test should get_dummies together
         logging.info('Before ohe : train {0}, test {1}'.format(df_train.shape, df_test.shape))
@@ -173,3 +214,12 @@ class Processer(object):
         test = combine[df_train.shape[0]:]
         logging.info('After ohe : train {0}, test {1}'.format(train.shape, test.shape))
         return train, test
+
+    @staticmethod
+    def ohe_by_unique(df):
+        one_hot = {c: list(df[c].unique()) for c in df.columns}
+        for c in one_hot:
+            if len(one_hot[c]) > 2 and len(one_hot[c]) < 7:
+                for val in one_hot[c]:
+                    df[c + '_oh_' + str(val)] = (df[c].values == val).astype(np.int)
+        return df
