@@ -1,7 +1,14 @@
 # encoding=utf8
+#################################################################################
+# FE:
+#    1) add 'negative one vals' features
+#    2) drop ['ps_ind_10_bin', 'ps_ind_11_bin', 'ps_ind_12_bin', 'ps_ind_13_bin']
+
+# LB : 0.284
+#################################################################################
+
 import pandas as pd
-import numpy as np
-from fe import Processer, Compose, FeatureImportance
+from fe import Processer, Compose
 
 import xgboost as xgb
 import lightgbm as lgbm
@@ -30,6 +37,7 @@ df_test = pd.read_csv(os.path.join(root_dir, 'test.csv'), na_values=-1)
 
 ## Separate label & feature
 df_y = df_train['target']
+train_id = df_train['id']
 df_train.drop(['id', 'target'], axis=1, inplace=True)
 df_sub = df_test['id'].to_frame()
 df_sub['target'] = 0.0
@@ -42,20 +50,11 @@ transformer_one = [
     (Processer.negative_one_vals, dict()),
     (Processer.dtype_transform, dict()),
 ]
-transformer_two = [
-    (Processer.drop_columns, dict(col_names=df_train.columns[df_train.columns.str.startswith('ps_calc_')])),
-    (Processer.drop_columns, dict(col_names=['ps_ind_10_bin', 'ps_ind_11_bin', 'ps_ind_12_bin', 'ps_ind_13_bin'])),
-    (Processer.median_mean_range, dict(opt_median=True, opt_mean=True)),
-    (Processer.convert_reg_03, dict()),
-    (Processer.dtype_transform, dict()),
-]
-train_specific = []
-test_specific = []
 # execute transforms pipeline
 logging.info('Transform train data')
-df_train = Compose(transformer_one + train_specific)(df_train)
+df_train = Compose(transformer_one)(df_train)
 logging.info('Transform test data')
-df_test = Compose(transformer_one + test_specific)(df_test)
+df_test = Compose(transformer_one)(df_test)
 # execute ohe
 df_train, df_test = Processer.ohe(df_train, df_test, [a for a in df_train.columns if a.endswith('cat')])
 
@@ -94,12 +93,13 @@ N = 5
 skf = StratifiedKFold(n_splits=N, shuffle=True, random_state=2017)
 
 ## Grid Search
+'''
 params_for_n_round = {
     'objective': 'binary:logistic',
     'eval_metric': 'logloss',
     'eta': 0.08,
     'max_depth': 5,
-    'min_child_weight':9, 
+    'min_child_weight':9,
     'gamma': 0,
     'subsample': 0.8,
     'colsample_bytree': 0.8,
@@ -108,7 +108,6 @@ params_for_n_round = {
     'silent': 1,
     'seed': 2017,
 }
-'''
 xgb_param = dict(
     # target
     objective='binary:logistic',
@@ -161,13 +160,25 @@ params_for_submit = {
     'silent': 1,
 }
 single_xgb = SingleXGB(X=X, y=y, test=df_test, N=5, skf=skf)
-best_rounds = single_xgb.cv(
-    params=params_for_submit,
-    num_boost_round=1000,
-    feval=GiniEvaluation.gini_xgb,
-    feval_name='gini',
-    maximize=True,
-    metrics=['auc'],
-)
-single_xgb.oof(params=params_for_submit, best_rounds=best_rounds, sub=df_sub)
-st(context=21)
+best_rounds = 431
+# best_rounds = 10
+do_cv = False
+if do_cv:
+    best_rounds = single_xgb.cv(
+        params=params_for_submit,
+        num_boost_round=1000,
+        feval=GiniEvaluation.gini_xgb,
+        feval_name='gini',
+        maximize=True,
+        metrics=['auc'],
+    )
+# record for stacker train
+df_sub, stacker_train = \
+    single_xgb.oof(params=params_for_submit, best_rounds=best_rounds, sub=df_sub, do_logit=False)
+df_sub.to_csv('../../data/output/sub_single_xgb_001.csv', index=False)
+df_sub.to_csv('../../data/for_stacker/sub_single_xgb_001_test.csv', index=False)
+s_train = pd.DataFrame()
+s_train['id'] = train_id
+s_train['prob'] = stacker_train
+s_train.to_csv('../../data/for_stacker/single_xgb_001_train.csv', index=False)
+print('XGBoost done')

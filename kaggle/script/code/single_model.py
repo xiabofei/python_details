@@ -4,6 +4,7 @@ import numpy as np
 import logging
 import time
 import gc
+import json
 
 import xgboost as xgb
 import lightgbm as lgbm
@@ -71,30 +72,32 @@ class SingleXGB(Single):
             feval_name, best_val_score, best_rounds))
         return best_rounds
 
-    def oof(self, params, best_rounds, feval, maximize, sub):
+    def oof(self, params, best_rounds, sub, do_logit=True):
+        stacker_train = np.zeros((self.X.shape[0], 1))
         dtest = xgb.DMatrix(data=self.test.values)
-        for trn_idx, val_idx in self.skf.split(self.X, self.y):
+        for index, (trn_idx, val_idx) in enumerate(self.skf.split(self.X, self.y)):
             trn_x, val_x = self.X[trn_idx], self.X[val_idx]
             trn_y, val_y = self.y[trn_idx], self.y[val_idx]
             dtrn = xgb.DMatrix(data=trn_x, label=trn_y)
             dval = xgb.DMatrix(data=val_x, label=val_y)
             # train model
+            logging.info('Train model in fold {0}'.format(index))
             cv_model = xgb.train(
                 params=params,
                 dtrain=dtrn,
-                evals=[(dval, 'val')],
                 num_boost_round=best_rounds,
-                feval=feval,
-                maximize=maximize,
-                early_stopping_rounds=50,
                 verbose_eval=10,
             )
-            sub['target'] += cv_model.predict(dtest, ntree_limit=best_rounds)
+            logging.info('Predict in fold {0}'.format(index))
+            prob = cv_model.predict(dtest, ntree_limit=best_rounds)
+            stacker_train[val_idx,0] = cv_model.predict(dval, ntree_limit=best_rounds)
+            sub['target'] += prob / self.N
+        if do_logit:
+            sub['target'] = 1 / (1 + np.exp(-sub['target']))
+            stacker_train = 1 / (1 + np.exp(-stacker_train))
         logging.info('{0} of folds'.format(self.N))
-        sub['target'] = sub['target'] / self.N
         logging.info('Oof by single xgboost model Done')
-        return sub
-
+        return sub, stacker_train
 
 class SingleLGBM(Single):
     pass

@@ -4,7 +4,7 @@ import pandas as pd
 import numpy as np
 import xgboost as xgb
 import lightgbm as lgb
-from sklearn.model_selection import StratifiedKFold
+from sklearn.model_selection import StratifiedKFold, KFold
 from evaluation import GiniEvaluation
 from utils import ps_reg_03_recon
 import gc
@@ -68,8 +68,6 @@ y = y.values
 
 gc.collect()
 
-lgb.LGBMRanker()
-
 def cv_by_lgbm():
     params = {
         'learning_rate': 0.03,
@@ -127,20 +125,20 @@ def cv_by_lgbm():
     print('LightGBM done')
 
 
-def cv_by_xgb():
+def cv_by_xgb(do_cv=False):
     params = {
         'objective': 'binary:logistic',
         'eval_metric': 'logloss',
-        'eta': 0.05,
+        'eta': 0.03,
         'max_depth': 5,
         'min_child_weight': 9,
-        'gamma': 0.4,
+        'gamma': 0.41,
         'subsample': 0.9,
         'colsample_bytree': 0.5,
         'alpha': 1e-4,
         'lambda': 20,
         'seed': 2017,
-        'nthread': 6,
+        'nthread': 10,
         'silent': 1,
     }
     ## cross validation
@@ -148,49 +146,53 @@ def cv_by_xgb():
     skf = StratifiedKFold(n_splits=N, shuffle=True, random_state=2017)
     folds = skf.split(X, y)
     dtrain = xgb.DMatrix(data=X, label=y)
-    num_boost_round = 312
-    bst = xgb.cv(
-        params=params,
-        dtrain=dtrain,
-        num_boost_round=num_boost_round,
-        nfold=N,
-        feval=GiniEvaluation.gini_xgb,
-        maximize=True,
-        metrics=['auc'],
-        folds=folds,
-        early_stopping_rounds=50,
-        verbose_eval=5,
-    )
-    best_rounds = np.argmax(bst['test-gini-mean'])
-    train_score = bst['train-gini-mean'][best_rounds]
-    best_val_score = bst['test-gini-mean'][best_rounds]
-    print('Best train_gini_mean: %.5f, val_gini_mean: %.5f at round %d.' % \
-          (train_score, best_val_score, best_rounds))
-    ## out-of-fold prediction
     dtest = xgb.DMatrix(data=test.values)
-    for trn_idx, val_idx in skf.split(X, y):
+    best_rounds = 704
+    if do_cv:
+        num_boost_round = 1000
+        bst = xgb.cv(
+            params=params,
+            dtrain=dtrain,
+            num_boost_round=num_boost_round,
+            nfold=N,
+            feval=GiniEvaluation.gini_xgb,
+            maximize=True,
+            metrics=['auc'],
+            folds=folds,
+            early_stopping_rounds=50,
+            verbose_eval=5,
+        )
+        best_rounds = np.argmax(bst['test-gini-mean'])
+        train_score = bst['train-gini-mean'][best_rounds]
+        best_val_score = bst['test-gini-mean'][best_rounds]
+        print('Best train_gini_mean: %.5f, val_gini_mean: %.5f at round %d.' % \
+              (train_score, best_val_score, best_rounds))
+    ## out-of-fold prediction
+    for index, (trn_idx, val_idx) in enumerate(skf.split(X, y)):
         trn_x, val_x = X[trn_idx], X[val_idx]
         trn_y, val_y = y[trn_idx], y[val_idx]
         dtrn = xgb.DMatrix(data=trn_x, label=trn_y)
-        dval = xgb.DMatrix(data=val_x, label=val_y)
-        # train model
+        # dval = xgb.DMatrix(data=val_x, label=val_y)
+        # train model in this fold
+        print('Train in fold {0}'.format(index))
         cv_model = xgb.train(
             params=params,
             dtrain=dtrn,
-            evals=[(dval, 'val')],
             num_boost_round=best_rounds,
             feval=GiniEvaluation.gini_xgb,
             maximize=True,
-            early_stopping_rounds=50,
             verbose_eval=10,
         )
-        cv_model.get_fscore()
-        sub['target'] += cv_model.predict(dtest, ntree_limit=best_rounds)
+        # predict test data for submit
+        print('Predict in fold {0}'.format(index))
+        prob = cv_model.predict(dtest, ntree_limit=best_rounds)
+        print('Predict result logistic transform in fold {0}'.format(index))
+        sub['target'] += np.log(prob / ( 1- prob))
     print('{0} of models ensemble'.format(N))
-    sub['target'] = sub['target'] / N
+    sub['target'] = 1 / (1 + np.exp(-sub['target']))
     sub.to_csv('../../data/output/sub_xgb.csv', index=False, float_format='%.7f')
     print('XGBoost done')
 
 
 # cv_by_lgbm()
-cv_by_xgb()
+cv_by_xgb(do_cv=False)
