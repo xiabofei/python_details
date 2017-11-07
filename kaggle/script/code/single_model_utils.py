@@ -100,4 +100,23 @@ class SingleXGB(Single):
         return sub, stacker_train
 
 class SingleLGBM(Single):
-    pass
+
+    def cv(self, params, num_boost_round, feval):
+        dtrain = lgbm.Dataset(data=self.X, label=self.y)
+        bst = lgbm.cv(
+            params=params,
+            train_set=dtrain,
+            nfold=self.N,
+            folds=self.skf.split(self.X, self.y),
+            num_boost_round=num_boost_round,
+            metrics=['auc'],
+            feval=feval,
+            early_stopping_rounds=50,
+            verbose_eval=10,
+        )
+        best_rounds = np.argmax(bst['gini-mean']) + 1
+        best_score = np.max(bst['gini-mean'])
+        logging.info('best rounds : {0}'.format(best_rounds))
+        logging.info('best score : {0}'.format(best_score))
+        logging.info('lightGBM params : \n{0}'.format(params))
+        return best_rounds, best_score

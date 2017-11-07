@@ -4,7 +4,7 @@
 #    1) add 'negative one vals' features
 #    2) drop ['ps_ind_10_bin', 'ps_ind_11_bin', 'ps_ind_12_bin', 'ps_ind_13_bin']
 
-# LB : 0.284
+# LB : 0.284 without log odds and only average of 5-folds
 #################################################################################
 
 import pandas as pd
@@ -17,7 +17,7 @@ import catboost as cbt
 from sklearn.model_selection import GridSearchCV, train_test_split, StratifiedKFold
 from sklearn.metrics import make_scorer
 from evaluation import GiniEvaluation, gini_score
-from single_model import SingleXGB
+from single_model_utils import SingleXGB
 
 from logging_manage import initialize_logger
 import logging

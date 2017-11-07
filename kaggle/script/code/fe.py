@@ -64,7 +64,7 @@ class FeatureImportance(object):
                 num_boost_round=num_boost_round,
                 feval=feval,
                 early_stopping_rounds=50,
-                verbose_eval=1,
+                verbose_eval=10,
             )
             feature_importance = MinMaxScaler().fit_transform(model.feature_importance().reshape(-1, 1))
             feature_importance = OrderedDict(

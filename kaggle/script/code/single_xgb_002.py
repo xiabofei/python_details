@@ -16,7 +16,7 @@ import catboost as cbt
 from sklearn.model_selection import GridSearchCV, train_test_split, StratifiedKFold
 from sklearn.metrics import make_scorer
 from evaluation import GiniEvaluation, gini_score
-from single_model import SingleXGB
+from single_model_utils import SingleXGB
 
 from logging_manage import initialize_logger
 import logging
@@ -36,6 +36,7 @@ df_test = pd.read_csv(os.path.join(root_dir, 'test.csv'), na_values=-1)
 
 ## Separate label & feature
 df_y = df_train['target']
+train_id = df_train['id']
 df_train.drop(['id', 'target'], axis=1, inplace=True)
 df_sub = df_test['id'].to_frame()
 df_sub['target'] = 0.0
@@ -156,6 +157,7 @@ best_rounds = single_xgb.cv(
 )
 '''
 single_xgb = SingleXGB(X=X, y=y, test=df_test, N=5, skf=skf)
+'''
 xgb_param = dict(
     # target
     objective='binary:logistic',
@@ -197,26 +199,36 @@ ret = single_xgb.grid_search_tuning(
 params_for_submit = {
     'objective': 'binary:logistic',
     'eval_metric': 'logloss',
-    'eta': 0.04,
+    'eta': 0.03,
     'max_depth': 5,
-    'min_child_weight': 9.15,
-    'gamma': 0.59,
+    'min_child_weight': 8.49,
+    'gamma': 0.93,
     'subsample': 0.8,
     'colsample_bytree': 0.8,
-    'alpha': 10.4,
-    'lambda': 5,
+    'alpha': 9.9,
+    'lambda': 0.4,
     'seed': 2017,
     'nthread': 10,
     'silent': 1,
 }
-single_xgb = SingleXGB(X=X, y=y, test=df_test, N=5, skf=skf)
-best_rounds = single_xgb.cv(
-    params=params_for_submit,
-    num_boost_round=1000,
-    feval=GiniEvaluation.gini_xgb,
-    feval_name='gini',
-    maximize=True,
-    metrics=['auc'],
-)
-single_xgb.oof(params=params_for_submit, best_rounds=best_rounds, sub=df_sub)
-'''
+do_cv = False
+best_rounds = 569
+if do_cv:
+    best_rounds = single_xgb.cv(
+        params=params_for_submit,
+        num_boost_round=1000,
+        feval=GiniEvaluation.gini_xgb,
+        feval_name='gini',
+        maximize=True,
+        metrics=['auc'],
+    )
+# record for stacker train
+df_sub, stacker_train = \
+    single_xgb.oof(params=params_for_submit, best_rounds=best_rounds, sub=df_sub, do_logit=True)
+df_sub.to_csv('../../data/output/sub_single_xgb_002.csv', index=False)
+df_sub.to_csv('../../data/for_stacker/sub_single_xgb_002_test.csv', index=False)
+s_train = pd.DataFrame()
+s_train['id'] = train_id
+s_train['prob'] = stacker_train
+s_train.to_csv('../../data/for_stacker/single_xgb_002_train.csv', index=False)
+print('XGBoost done')

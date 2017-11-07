@@ -11,7 +11,7 @@ import catboost as cbt
 from sklearn.model_selection import GridSearchCV, train_test_split, StratifiedKFold
 from sklearn.metrics import make_scorer
 from evaluation import GiniEvaluation, gini_score
-from single_model import SingleXGB
+from single_model_utils import SingleXGB
 
 from stack_ensemble import StackEnsemble
 from sklearn.linear_model import LogisticRegression
@@ -161,7 +161,6 @@ stack = StackEnsemble(n_splits=3, stacker=LogisticRegression(), base_models=base
 # fit and create and sub
 
 ##
-'''
 # feature and label for train
 X = df_train.values
 y = df_y.values
@@ -204,4 +203,3 @@ lgbm_gs = GridSearchCV(
     verbose=10,
     n_jobs=1,
 )
-'''
