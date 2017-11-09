@@ -119,4 +119,51 @@ class SingleLGBM(Single):
         logging.info('best rounds : {0}'.format(best_rounds))
         logging.info('best score : {0}'.format(best_score))
         logging.info('lightGBM params : \n{0}'.format(params))
-        return best_rounds, best_score
+        return best_rounds
+
+    def oof(self, params, best_rounds, sub, do_logit=True):
+        stacker_train = np.zeros((self.X.shape[0], 1))
+        for index, (trn_idx, val_idx) in enumerate(self.skf.split(self.X, self.y)):
+            trn_x, val_x = self.X[trn_idx], self.X[val_idx]
+            trn_y, val_y = self.y[trn_idx], self.y[val_idx]
+            dtrn = lgbm.Dataset(data=trn_x, label=trn_y)
+            # train model
+            logging.info('Train model in fold {0}'.format(index))
+            cv_model = lgbm.train(
+                params=params,
+                train_set=dtrn,
+                num_boost_round=best_rounds,
+                verbose_eval=10,
+            )
+            logging.info('Predict in fold {0}'.format(index))
+            prob = cv_model.predict(self.test.values, num_iteration=best_rounds)
+            stacker_train[val_idx,0] = cv_model.predict(val_x, num_iteration=best_rounds)
+            sub['target'] += prob / self.N
+        if do_logit:
+            sub['target'] = 1 / (1 + np.exp(-sub['target']))
+            stacker_train = 1 / (1 + np.exp(-stacker_train))
+        logging.info('{0} of folds'.format(self.N))
+        logging.info('Oof by single lightGBM model Done')
+        return sub, stacker_train
+
+    def grid_search_tuning(self, lgbm_param, lgbm_param_grid, f_score, n_jobs):
+        lgbm_estimator = lgbm.LGBMClassifier(**lgbm_param)
+        lgbm_gs = GridSearchCV(
+            estimator=lgbm_estimator,
+            param_grid=lgbm_param_grid,
+            cv=self.skf,
+            scoring=make_scorer(f_score, greater_is_better=True, needs_proba=True),
+            verbose=2,
+            n_jobs=n_jobs,
+            refit=False
+        )
+        time_begin = time.time()
+        lgbm_gs.fit(self.X, self.y)
+        time_end = time.time()
+        logging.info('Grid search eat time {0} : params {1}'.format(time_end - time_begin, lgbm_param_grid))
+        logging.info('best_score_ : {0}'.format(lgbm_gs.best_score_))
+        logging.info('best_params_ : {0}'.format(lgbm_gs.best_params_))
+        for score in lgbm_gs.grid_scores_:
+            logging.info('grid_scores_ : {0}'.format(score))
+        gc.collect()
+        return lgbm_gs.best_score_, lgbm_gs.best_params_, lgbm_gs.grid_scores_

@@ -1,8 +1,14 @@
 # encoding=utf8
-# From https://www.kaggle.com/aharless/xgboost-cv-lb-284?scriptVersionId=1673581
-# Version 40
 
 from __future__ import print_function
+
+MAX_ROUNDS = 400
+OPTIMIZE_ROUNDS = False
+LEARNING_RATE = 0.07
+EARLY_STOPPING_ROUNDS = 50
+# Note: I set EARLY_STOPPING_ROUNDS high so that (when OPTIMIZE_ROUNDS is set)
+#       I will get lots of information to make my own judgment.  You should probably
+#       reduce EARLY_STOPPING_ROUNDS if you want to do actual early stopping.
 
 import numpy as np
 import pandas as pd
@@ -14,46 +20,29 @@ from numba import jit
 import time
 import gc
 
-# parameter setting
-MAX_ROUNDS = 370
-OPTIMIZE_ROUNDS = False
-LEARNING_RATE = 0.07
-EARLY_STOPPING_ROUNDS = 50
+from ipdb import set_trace as st
 
-# Read data
-train_df = pd.read_csv('../../data/input/train.csv', na_values=-1)
-test_df = pd.read_csv('../../data/input/test.csv', na_values=-1)
+# Compute gini
+def eval_gini(a, p):
+    def _gini(actual, pred):
+        assert (len(actual) == len(pred))
+        all = np.asarray(np.c_[actual, pred, np.arange(len(actual))], dtype=np.float)
+        all = all[np.lexsort((all[:, 2], -1 * all[:, 1]))]
+        totalLosses = all[:, 0].sum()
+        giniSum = all[:, 0].cumsum().sum() / totalLosses
+        giniSum -= (len(actual) + 1) / 2.
+        return giniSum / len(actual)
+    return _gini(a, p) / _gini(a, a)
 
-###=======================================================================================
-# from CPMP's kernel https://www.kaggle.com/cpmpml/extremely-fast-gini-computation
-@jit
-def eval_gini(y_true, y_prob):
-    y_true = np.asarray(y_true)
-    y_true = y_true[np.argsort(y_prob)]
-    ntrue = 0
-    gini = 0
-    delta = 0
-    n = len(y_true)
-    for i in range(n-1, -1, -1):
-        y_i = y_true[i]
-        ntrue += y_i
-        gini += y_i * delta
-        delta += 1 - y_i
-    gini = 1 - 2 * gini / (ntrue * (n - ntrue))
-    return gini
-###=======================================================================================
-
-
-###=======================================================================================
-# Funcitons from olivier's kernel
-# https://www.kaggle.com/ogrellier/xgb-classifier-upsampling-lb-0-283
 def gini_xgb(preds, dtrain):
     labels = dtrain.get_label()
-    gini_score = -eval_gini(labels, preds)
+    gini_score = eval_gini(labels, preds)
     return [('gini', gini_score)]
+
 
 def add_noise(series, noise_level):
     return series * (1 + noise_level * np.random.randn(len(series)))
+
 
 def target_encode(trn_series=None,    # Revised to encode validation series
                   val_series=None,
@@ -106,61 +95,65 @@ def target_encode(trn_series=None,    # Revised to encode validation series
     # pd.merge does not keep the index so restore it
     ft_tst_series.index = tst_series.index
     return add_noise(ft_trn_series, noise_level), add_noise(ft_val_series, noise_level), add_noise(ft_tst_series, noise_level)
-###=======================================================================================
 
-###=======================================================================================
-# Collect features
+# Read data
+train_df = pd.read_csv('../../data/input/train.csv', na_values="-1") # .iloc[0:200,:]
+test_df = pd.read_csv('../../data/input/test.csv', na_values="-1")
+
+# from olivier
 train_features = [
     "ps_car_13",  #            : 1571.65 / shadow  609.23
-	"ps_reg_03",  #            : 1408.42 / shadow  511.15
-	"ps_ind_05_cat",  #        : 1387.87 / shadow   84.72
-	"ps_ind_03",  #            : 1219.47 / shadow  230.55
-	"ps_ind_15",  #            :  922.18 / shadow  242.00
-	"ps_reg_02",  #            :  920.65 / shadow  267.50
-	"ps_car_14",  #            :  798.48 / shadow  549.58
-	"ps_car_12",  #            :  731.93 / shadow  293.62
-	"ps_car_01_cat",  #        :  698.07 / shadow  178.72
-	"ps_car_07_cat",  #        :  694.53 / shadow   36.35
-	"ps_ind_17_bin",  #        :  620.77 / shadow   23.15
-	"ps_car_03_cat",  #        :  611.73 / shadow   50.67
-	"ps_reg_01",  #            :  598.60 / shadow  178.57
-	"ps_car_15",  #            :  593.35 / shadow  226.43
-	"ps_ind_01",  #            :  547.32 / shadow  154.58
-	"ps_ind_16_bin",  #        :  475.37 / shadow   34.17
-	"ps_ind_07_bin",  #        :  435.28 / shadow   28.92
-	"ps_car_06_cat",  #        :  398.02 / shadow  212.43
-	"ps_car_04_cat",  #        :  376.87 / shadow   76.98
-	"ps_ind_06_bin",  #        :  370.97 / shadow   36.13
-	"ps_car_09_cat",  #        :  214.12 / shadow   81.38
-	"ps_car_02_cat",  #        :  203.03 / shadow   26.67
-	"ps_ind_02_cat",  #        :  189.47 / shadow   65.68
-	"ps_car_11",  #            :  173.28 / shadow   76.45
-	"ps_car_05_cat",  #        :  172.75 / shadow   62.92
-	"ps_calc_09",  #           :  169.13 / shadow  129.72
-	"ps_calc_05",  #           :  148.83 / shadow  120.68
-	"ps_ind_08_bin",  #        :  140.73 / shadow   27.63
-	"ps_car_08_cat",  #        :  120.87 / shadow   28.82
-	"ps_ind_09_bin",  #        :  113.92 / shadow   27.05
-	"ps_ind_04_cat",  #        :  107.27 / shadow   37.43
-	"ps_ind_18_bin",  #        :   77.42 / shadow   25.97
-	"ps_ind_12_bin",  #        :   39.67 / shadow   15.52
-	"ps_ind_14",  #            :   37.37 / shadow   16.65
+    "ps_reg_03",  #            : 1408.42 / shadow  511.15
+    "ps_ind_05_cat",  #        : 1387.87 / shadow   84.72
+    "ps_ind_03",  #            : 1219.47 / shadow  230.55
+    "ps_ind_15",  #            :  922.18 / shadow  242.00
+    "ps_reg_02",  #            :  920.65 / shadow  267.50
+    "ps_car_14",  #            :  798.48 / shadow  549.58
+    "ps_car_12",  #            :  731.93 / shadow  293.62
+    "ps_car_01_cat",  #        :  698.07 / shadow  178.72
+    "ps_car_07_cat",  #        :  694.53 / shadow   36.35
+    "ps_ind_17_bin",  #        :  620.77 / shadow   23.15
+    "ps_car_03_cat",  #        :  611.73 / shadow   50.67
+    "ps_reg_01",  #            :  598.60 / shadow  178.57
+    "ps_car_15",  #            :  593.35 / shadow  226.43
+    "ps_ind_01",  #            :  547.32 / shadow  154.58
+    "ps_ind_16_bin",  #        :  475.37 / shadow   34.17
+    "ps_ind_07_bin",  #        :  435.28 / shadow   28.92
+    "ps_car_06_cat",  #        :  398.02 / shadow  212.43
+    "ps_car_04_cat",  #        :  376.87 / shadow   76.98
+    "ps_ind_06_bin",  #        :  370.97 / shadow   36.13
+    "ps_car_09_cat",  #        :  214.12 / shadow   81.38
+    "ps_car_02_cat",  #        :  203.03 / shadow   26.67
+    "ps_ind_02_cat",  #        :  189.47 / shadow   65.68
+    "ps_car_11",  #            :  173.28 / shadow   76.45
+    "ps_car_05_cat",  #        :  172.75 / shadow   62.92
+    "ps_calc_09",  #           :  169.13 / shadow  129.72
+    "ps_calc_05",  #           :  148.83 / shadow  120.68
+    "ps_ind_08_bin",  #        :  140.73 / shadow   27.63
+    "ps_car_08_cat",  #        :  120.87 / shadow   28.82
+    "ps_ind_09_bin",  #        :  113.92 / shadow   27.05
+    "ps_ind_04_cat",  #        :  107.27 / shadow   37.43
+    "ps_ind_18_bin",  #        :   77.42 / shadow   25.97
+    "ps_ind_12_bin",  #        :   39.67 / shadow   15.52
+    "ps_ind_14",  #            :   37.37 / shadow   16.65
 ]
 # add combinations
 combs = [
     ('ps_reg_01', 'ps_car_02_cat'),
     ('ps_reg_01', 'ps_car_04_cat'),
 ]
-###=======================================================================================
+
 # Process data
 id_test = test_df['id'].values
 id_train = train_df['id'].values
 y = train_df['target']
+st(context=21)
 
 start = time.time()
 for n_c, (f1, f2) in enumerate(combs):
     name1 = f1 + "_plus_" + f2
-    print('current feature %60s %4d in %5.1f' % (name1, n_c + 1, (time.time() - start) / 60), end='')
+    print('current feature %60s %4d in %5.1f'
+          % (name1, n_c + 1, (time.time() - start) / 60), end='')
     print('\r' * 75, end='')
     train_df[name1] = train_df[f1].apply(lambda x: str(x)) + "_" + train_df[f2].apply(lambda x: str(x))
     test_df[name1] = test_df[f1].apply(lambda x: str(x)) + "_" + test_df[f2].apply(lambda x: str(x))
@@ -169,11 +162,12 @@ for n_c, (f1, f2) in enumerate(combs):
     lbl.fit(list(train_df[name1].values) + list(test_df[name1].values))
     train_df[name1] = lbl.transform(list(train_df[name1].values))
     test_df[name1] = lbl.transform(list(test_df[name1].values))
-
     train_features.append(name1)
 
 X = train_df[train_features]
 test_df = test_df[train_features]
+
+st(context=21)
 
 f_cats = [f for f in X.columns if "_cat" in f]
 
@@ -192,16 +186,19 @@ model = XGBClassifier(
     objective="binary:logistic",
     learning_rate=LEARNING_RATE,
     subsample=.8,
-    min_child_weight=.77,
+    min_child_weight=6,
     colsample_bytree=.8,
     scale_pos_weight=1.6,
-    n_jobs=5,
     gamma=10,
     reg_alpha=8,
     reg_lambda=1.3,
+    n_jobs=5,
 )
 
 # Run CV
+
+print('feature shape {0}'.format(X.shape))
+
 for i, (train_index, test_index) in enumerate(kf.split(train_df)):
 
     # Create data for this fold
@@ -241,25 +238,28 @@ for i, (train_index, test_index) in enumerate(kf.split(train_df)):
     y_valid_pred.iloc[test_index] = pred
 
     # Accumulate test set predictions
-    y_test_pred += fit_model.predict_proba(X_test)[:, 1]
+    probs = fit_model.predict_proba(X_test)[:, 1]
+    y_test_pred += np.log(probs / (1 - probs))
 
     del X_test, X_train, X_valid, y_train
 
 y_test_pred /= K  # Average test set predictions
+y_test_pred = 1 / (1 + np.exp(-y_test_pred))
 
 print("\nGini for full training set:")
 eval_gini(y, y_valid_pred)
-###=======================================================================================
 
-###=======================================================================================
+
 # Save validation predictions for stacking/ensembling
 val = pd.DataFrame()
 val['id'] = id_train
 val['target'] = y_valid_pred.values
-val.to_csv('./xgb_valid.csv', float_format='%.6f', index=False)
+val.to_csv('xgb_valid.csv', float_format='%.6f', index=False)
+
 # Create submission file
 sub = pd.DataFrame()
 sub['id'] = id_test
 sub['target'] = y_test_pred
-sub.to_csv('./xgb_submit.csv', float_format='%.6f', index=False)
-###=======================================================================================
+sub.to_csv('xgb_submit.csv', float_format='%.6f', index=False)
+
+

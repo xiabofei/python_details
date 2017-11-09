@@ -24,6 +24,7 @@ col = [c for c in train.columns if c not in ['id', 'target']]
 col = [c for c in col if not c.startswith('ps_calc_')]
 
 train = train.replace(-1, np.NaN)
+train.drop([149161], axis=0, inplace=True)
 d_median = train.median(axis=0)
 d_mean = train.mean(axis=0)
 train = train.fillna(-1)
@@ -53,11 +54,12 @@ test = transform(test)
 col = [c for c in train.columns if c not in ['id', 'target']]
 col = [c for c in col if not c.startswith('ps_calc_')]
 
-dups = train[train.duplicated(subset=col, keep=False)]
-
-train = train[~(train['id'].isin(dups['id'].values))]
+# dups = train[train.duplicated(subset=col, keep=False)]
+#
+# train = train[~(train['id'].isin(dups['id'].values))]
 
 target_train = train['target']
+id_train = train['id']
 train = train[col]
 test = test[col]
 print(train.values.shape, test.values.shape)
@@ -93,7 +95,7 @@ class Ensemble(object):
                 #                cross_score = cross_val_score(clf, X_train, y_train, cv=3, scoring='roc_auc')
                 #                print("    cross_score: %.5f" % (cross_score.mean()))
                 y_pred = clf.predict_proba(X_holdout)[:, 1]
-
+                # record in-fold predict results
                 S_train[test_idx, i] = y_pred
                 S_test_i[:, j] = clf.predict_proba(T)[:, 1]
             S_test[:, i] = S_test_i.mean(axis=1)
@@ -103,107 +105,55 @@ class Ensemble(object):
 
         self.stacker.fit(S_train, y)
         res = self.stacker.predict_proba(S_test)[:, 1]
-        return res
+        return res, S_train, S_test
 
 
 # LightGBM params
 lgb_params_1 = {
     'learning_rate': 0.01,
     'n_estimators': 1250,
+    # 'n_estimators': 5,
     'max_bin': 10,
     'subsample': 0.8,
     'subsample_freq': 10,
     'colsample_bytree': 0.8,
     'min_child_samples': 500,
-    'n_jobs': 5
+    'nthread': 5
 }
 
 lgb_params_2 = {
     'learning_rate': 0.005,
     'n_estimators': 3700,
+    # 'n_estimators': 5,
     'subsample': 0.7,
     'subsample_freq': 2,
     'colsample_bytree': 0.3,
     'num_leaves': 16,
-    'n_jobs': 5
+    'nthread': 5
 }
 
 lgb_params_3 = {
     'learning_rate': 0.02,
     'n_estimators': 800,
+    # 'n_estimators': 5,
     'max_depth': 4,
-    'n_jobs': 5
+    'nthread': 5
 }
 
-# RandomForest params
-# rf_params = {}
-# rf_params['n_estimators'] = 200
-# rf_params['max_depth'] = 6
-# rf_params['min_samples_split'] = 70
-# rf_params['min_samples_leaf'] = 30
+# XGBoost params
+xgb_params = {}
+xgb_params['objective'] = 'binary:logistic'
+xgb_params['learning_rate'] = 0.02
+xgb_params['n_estimators'] = 1000
+# xgb_params['n_estimators'] = 5
+xgb_params['max_depth'] = 4
+xgb_params['subsample'] = 0.9
+xgb_params['colsample_bytree'] = 0.9
+xgb_params['min_child_weight'] = 10
+xgb_params['nthread'] = 5
 
 
-# ExtraTrees params
-# et_params = {}
-# et_params['n_estimators'] = 155
-# et_params['max_features'] = 0.3
-# et_params['max_depth'] = 6
-# et_params['min_samples_split'] = 40
-# et_params['min_samples_leaf'] = 18
-
-
-# XGBoost params 1
-xgb_params1 = {}
-xgb_params1['objective'] = 'binary:logistic'
-xgb_params1['learning_rate'] = 0.03
-xgb_params1['n_estimators'] = 600
-xgb_params1['max_depth'] = 5
-xgb_params1['min_child_weight'] = 9
-xgb_params1['gamma'] = 0.4
-xgb_params1['subsample'] = 0.9
-xgb_params1['colsample_bytree'] = 0.5
-xgb_params1['reg_alpha'] = 1e-4
-xgb_params1['reg_lambda'] = 20
-xgb_params1['scale_pos_weight'] = 0.41
-xgb_params1['nthread'] = 4
-
-# XGBoost params 2
-xgb_params2 = {}
-xgb_params2['objective'] = 'binary:logistic'
-xgb_params2['learning_rate'] = 0.02
-xgb_params2['n_estimators'] = 1000
-xgb_params2['max_depth'] = 4
-xgb_params2['subsample'] = 0.9
-xgb_params2['colsample_bytree'] = 0.9
-xgb_params2['min_child_weight'] = 10
-xgb_params2['nthread'] = 4
-
-# CatBoost params
-# cat_params = {}
-# cat_params['iterations'] = 900
-# cat_params['depth'] = 8
-# cat_params['rsm'] = 0.95
-# cat_params['learning_rate'] = 0.03
-# cat_params['l2_leaf_reg'] = 3.5
-# cat_params['border_count'] = 8
-# cat_params['gradient_iterations'] = 4
-
-
-# Regularized Greedy Forest params
-# rgf_params = {}
-# rgf_params['max_leaf'] = 2000
-# rgf_params['learning_rate'] = 0.5
-# rgf_params['algorithm'] = "RGF_Sib"
-# rgf_params['test_interval'] = 100
-# rgf_params['min_samples_leaf'] = 3
-# rgf_params['reg_depth'] = 1.0
-# rgf_params['l2'] = 0.5
-# rgf_params['sl2'] = 0.005
-
-
-xgb_model_1 = XGBClassifier(**xgb_params1)
-
-xgb_model_2 = XGBClassifier(**xgb_params2)
+xgb_model = XGBClassifier(**xgb_params)
 
 lgb_model_1 = LGBMClassifier(**lgb_params_1)
 
@@ -211,30 +161,34 @@ lgb_model_2 = LGBMClassifier(**lgb_params_2)
 
 lgb_model_3 = LGBMClassifier(**lgb_params_3)
 
-# rf_model = RandomForestClassifier(**rf_params)
-
-# et_model = ExtraTreesClassifier(**et_params)
-
-
-# cat_model = CatBoostClassifier(**cat_params)
-
-# rgf_model = RGFClassifier(**rgf_params)
-
-# gb_model = GradientBoostingClassifier(max_depth=5)
-
-# ada_model = AdaBoostClassifier()
-
 log_model = LogisticRegression()
 
 stack = Ensemble(
     n_splits=5,
     stacker=log_model,
-    base_models=(xgb_model_1, xgb_model_2, lgb_model_1, lgb_model_2, lgb_model_3)
+    base_models=(xgb_model, lgb_model_1, lgb_model_2, lgb_model_3)
 )
 
-y_pred = stack.fit_predict(train, target_train, test)
+y_pred, s_train, s_test = stack.fit_predict(train, target_train, test)
 
 sub = pd.DataFrame()
 sub['id'] = id_test
 sub['target'] = y_pred
-sub.to_csv('../../data/output/stacked.csv', index=False)
+sub.to_csv('../../data/output/sub_simple_stacker_001.csv', index=False)
+
+stacker_train = pd.DataFrame()
+stacker_train['id'] = id_train
+stacker_train['xgb'] = s_train[:,0]
+stacker_train['lgb1'] = s_train[:,1]
+stacker_train['lgb2'] = s_train[:,2]
+stacker_train['lgb3'] = s_train[:,3]
+stacker_train.to_csv('../../data/for_stacker/simple_stacker_001_train.csv', index=False)
+
+stacker_test = pd.DataFrame()
+stacker_test['id'] = sub['id']
+stacker_test['xgb'] = s_test[:,0]
+stacker_test['lgb1'] = s_test[:,1]
+stacker_test['lgb2'] = s_test[:,2]
+stacker_test['lgb3'] = s_test[:,3]
+stacker_test.to_csv('../../data/for_stacker/sub_simple_stacker_001_test.csv', index=False)
+
