@@ -5,7 +5,6 @@ import os
 FORMAT = '[MAIN] %(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s'
 DATEFMT = '%d-%m-%Y:%H:%M:%S'
 
-
 def initialize_logger(output_dir):
     logger = logging.getLogger()
     logger.setLevel(logging.DEBUG)
