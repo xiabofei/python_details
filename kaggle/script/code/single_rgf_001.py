@@ -1,4 +1,8 @@
 # encoding=utf8
+#################################################################################
+# https://www.kaggle.com/scirpus/regularized-greedy-forest
+# LB 0.280
+#################################################################################
 
 from __future__ import print_function
 
@@ -12,13 +16,19 @@ EARLY_STOPPING_ROUNDS = 50
 
 import numpy as np
 import pandas as pd
-from xgboost import XGBClassifier
-from sklearn.model_selection import train_test_split
+from rgf.sklearn import RGFClassifier
 from sklearn.model_selection import KFold
 from sklearn.preprocessing import LabelEncoder
-from numba import jit
+from io_utils import Number_of_folds, comm_skf
 import time
 import gc
+from logging_manage import initialize_logger
+import logging
+import os
+
+
+## logging setting
+initialize_logger(output_dir='../../data/log/')
 
 from ipdb import set_trace as st
 
@@ -97,8 +107,11 @@ def target_encode(trn_series=None,    # Revised to encode validation series
     return add_noise(ft_trn_series, noise_level), add_noise(ft_val_series, noise_level), add_noise(ft_tst_series, noise_level)
 
 # Read data
-train_df = pd.read_csv('../../data/input/train.csv', na_values="-1") # .iloc[0:200,:]
+train_df = pd.read_csv('../../data/input/train.csv', na_values="-1")
+train_df.drop([149161], axis=0, inplace=True)
+train_df.fillna(train_df.mean(), inplace=True)
 test_df = pd.read_csv('../../data/input/test.csv', na_values="-1")
+test_df.fillna(train_df.mean(), inplace=True)
 
 # from olivier
 train_features = [
@@ -147,7 +160,6 @@ combs = [
 id_test = test_df['id'].values
 id_train = train_df['id'].values
 y = train_df['target']
-st(context=21)
 
 start = time.time()
 for n_c, (f1, f2) in enumerate(combs):
@@ -167,97 +179,94 @@ for n_c, (f1, f2) in enumerate(combs):
 X = train_df[train_features]
 test_df = test_df[train_features]
 
+
 f_cats = [f for f in X.columns if "_cat" in f]
 
 y_valid_pred = 0*y
 y_test_pred = 0
 
 # Set up folds
-K = 5
-kf = KFold(n_splits = K, random_state = 1, shuffle = True)
-np.random.seed(0)
+K = Number_of_folds
+kf = comm_skf
 
-# Set up classifier
-model = XGBClassifier(
-    n_estimators=MAX_ROUNDS,
-    max_depth=4,
-    objective="binary:logistic",
-    learning_rate=LEARNING_RATE,
-    subsample=.8,
-    min_child_weight=6,
-    colsample_bytree=.8,
-    scale_pos_weight=1.6,
-    gamma=10,
-    reg_alpha=8,
-    reg_lambda=1.3,
-    n_jobs=5,
-)
+sl2_list = [0.08, 0.09, 0.11, 0.12]
+for sl2 in sl2_list:
+    logging.info('test with sl2 : {0}'.format(sl2))
+    # Set up classifier
+    model = RGFClassifier(
+        max_leaf=1200,
+        algorithm="RGF",
+        loss="Log",
+        l2=0.012,
+        sl2=sl2,
+        normalize=False,
+        min_samples_leaf=10,
+        n_iter=None,
+        opt_interval=100,
+        learning_rate=0.5,
+        calc_prob="sigmoid",
+        n_jobs=-1,
+        memory_policy="generous",
+        verbose=0
+    )
 
-# Run CV
+    # Run CV
+    logging.info('feature shape {0}'.format(X.shape))
 
-print('feature shape {0}'.format(X.shape))
+    for i, (train_index, test_index) in enumerate(kf.split(train_df, y)):
 
-for i, (train_index, test_index) in enumerate(kf.split(train_df)):
+        # Create data for this fold
+        y_train, y_valid = y.iloc[train_index].copy(), y.iloc[test_index]
+        X_train, X_valid = X.iloc[train_index, :].copy(), X.iloc[test_index, :].copy()
+        X_test = test_df.copy()
+        logging.info("Fold {0}".format(i))
 
-    # Create data for this fold
-    y_train, y_valid = y.iloc[train_index].copy(), y.iloc[test_index]
-    X_train, X_valid = X.iloc[train_index, :].copy(), X.iloc[test_index, :].copy()
-    X_test = test_df.copy()
-    print("\nFold ", i)
-
-    # Enocode data
-    for f in f_cats:
-        X_train[f + "_avg"], X_valid[f + "_avg"], X_test[f + "_avg"] = target_encode(
-            trn_series=X_train[f],
-            val_series=X_valid[f],
-            tst_series=X_test[f],
-            target=y_train,
-            min_samples_leaf=200,
-            smoothing=10,
-            noise_level=0
-        )
-    # Run model for this fold
-    if OPTIMIZE_ROUNDS:
-        eval_set = [(X_valid, y_valid)]
-        fit_model = model.fit(X_train, y_train,
-                              eval_set=eval_set,
-                              eval_metric=gini_xgb,
-                              early_stopping_rounds=EARLY_STOPPING_ROUNDS,
-                              verbose=False
-                              )
-        print("  Best N trees = ", model.best_ntree_limit)
-        print("  Best gini = ", model.best_score)
-    else:
+        # Enocode data
+        for f in f_cats:
+            X_train[f + "_avg"], X_valid[f + "_avg"], X_test[f + "_avg"] = target_encode(
+                trn_series=X_train[f],
+                val_series=X_valid[f],
+                tst_series=X_test[f],
+                target=y_train,
+                min_samples_leaf=200,
+                smoothing=10,
+                noise_level=0
+            )
+        # Run model for this fold
         fit_model = model.fit(X_train, y_train)
 
-    # Generate validation predictions for this fold
-    pred = fit_model.predict_proba(X_valid)[:, 1]
-    print("  Gini = ", eval_gini(y_valid, pred))
-    y_valid_pred.iloc[test_index] = pred
+        # Generate validation predictions for this fold
+        pred = fit_model.predict_proba(X_valid)[:, 1]
+        logging.info("  Gini = {0}".format(eval_gini(y_valid, pred)))
+        y_valid_pred.iloc[test_index] = pred
 
-    # Accumulate test set predictions
-    probs = fit_model.predict_proba(X_test)[:, 1]
-    y_test_pred += np.log(probs / (1 - probs))
+        # Accumulate test set predictions
+        probs = fit_model.predict_proba(X_test)[:, 1]
+        y_test_pred += probs
 
-    del X_test, X_train, X_valid, y_train
+        del X_test, X_train, X_valid, y_train
 
-y_test_pred /= K  # Average test set predictions
-y_test_pred = 1 / (1 + np.exp(-y_test_pred))
+    y_test_pred /= K  # Average test set predictions
 
-print("\nGini for full training set:")
-eval_gini(y, y_valid_pred)
+    logging.info("Gini for full training set: {0}".format(eval_gini(y, y_valid_pred)))
 
-
-# Save validation predictions for stacking/ensembling
-val = pd.DataFrame()
-val['id'] = id_train
-val['target'] = y_valid_pred.values
-val.to_csv('xgb_valid.csv', float_format='%.6f', index=False)
-
-# Create submission file
-sub = pd.DataFrame()
-sub['id'] = id_test
-sub['target'] = y_test_pred
-sub.to_csv('xgb_submit.csv', float_format='%.6f', index=False)
-
-
+    '''
+    # Save validation predictions for stacking/ensembling
+    val = pd.DataFrame()
+    val['id'] = id_train
+    val['target'] = y_valid_pred.values
+    val.to_csv(
+        '../../data/for_stacker/single_rgf_001_train.csv',
+        float_format='%.7f',
+        index=False
+    )
+    # Create submission file
+    sub = pd.DataFrame()
+    sub['id'] = id_test
+    sub['target'] = y_test_pred
+    sub.to_csv(
+        '../../data/for_stacker/sub_single_rgf_001_test.csv',
+        float_format='%.6f',
+        index=False
+    )
+    '''

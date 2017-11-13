@@ -3,8 +3,7 @@
 # FE:
 #    1) add 'negative one vals' features
 #    2) drop ['ps_ind_10_bin', 'ps_ind_11_bin', 'ps_ind_12_bin', 'ps_ind_13_bin']
-
-# LB : 0.284 without log odds and only average of 5-folds
+# LB : 0.284
 #################################################################################
 
 import pandas as pd
@@ -17,7 +16,8 @@ import catboost as cbt
 from sklearn.model_selection import GridSearchCV, train_test_split, StratifiedKFold
 from sklearn.metrics import make_scorer
 from evaluation import GiniEvaluation, gini_score
-from single_model_utils import SingleXGB
+from model_utils import SingleXGB
+from io_utils import read_data, comm_skf, Number_of_folds, write_data
 
 from logging_manage import initialize_logger
 import logging
@@ -30,18 +30,9 @@ from ipdb import set_trace as st
 initialize_logger(output_dir='../../data/log/')
 
 ## Data Loading
-root_dir = '../../data/input/'
-df_train = pd.read_csv(os.path.join(root_dir, 'train.csv'), na_values=-1)
-df_train.drop([149161], axis=0, inplace=True)
-df_test = pd.read_csv(os.path.join(root_dir, 'test.csv'), na_values=-1)
-
-## Separate label & feature
-df_y = df_train['target']
-train_id = df_train['id']
-df_train.drop(['id', 'target'], axis=1, inplace=True)
-df_sub = df_test['id'].to_frame()
-df_sub['target'] = 0.0
-df_test.drop(['id'], axis=1, inplace=True)
+df_train, df_y, df_test, df_sub, train_id = read_data()
+## Common skf
+skf = comm_skf
 
 ## Data Processing and Feature Engineering
 transformer_one = [
@@ -58,39 +49,11 @@ df_test = Compose(transformer_one)(df_test)
 # execute ohe
 df_train, df_test = Processer.ohe(df_train, df_test, [a for a in df_train.columns if a.endswith('cat')])
 
-# fast feature importance evaluation by xgboost
-'''
-params_for_fi = {
-    'objective': 'binary:logistic',
-    'eval_metric': 'logloss',
-    'eta': 0.05,
-    'max_depth': 5,
-    'subsample': 0.9,
-    'colsample_bytree': 0.9,
-    'seed': 2017,
-    'nthread': 8,
-    'silent': 1,
-}
-df_feature_importance = FeatureImportance.xgb_fi(
-    params=params_for_fi,
-    data=df_train,
-    label=df_y,
-    feval=GiniEvaluation.gini_xgb,
-    maximize=True,
-    num_boost_round=100, cv=True,
-)
-st(context=21)
-'''
-
 # feature and label for train
 X = df_train.values
 y = df_y.values
 
 gc.collect()
-
-## kfolds
-N = 5
-skf = StratifiedKFold(n_splits=N, shuffle=True, random_state=2017)
 
 ## Grid Search
 '''
@@ -144,6 +107,8 @@ ret = single_xgb.grid_search_tuning(
     n_jobs=5
 )
 '''
+
+## cv and oof
 params_for_submit = {
     'objective': 'binary:logistic',
     'eval_metric': 'logloss',
@@ -159,11 +124,10 @@ params_for_submit = {
     'nthread': 10,
     'silent': 1,
 }
-single_xgb = SingleXGB(X=X, y=y, test=df_test, N=5, skf=skf)
+single_xgb = SingleXGB(X=X, y=y, test=df_test, skf=skf, N=Number_of_folds)
 best_rounds = 431
-# best_rounds = 10
-do_cv = False
-if do_cv:
+DO_CV = False
+if DO_CV:
     best_rounds = single_xgb.cv(
         params=params_for_submit,
         num_boost_round=1000,
@@ -172,13 +136,19 @@ if do_cv:
         maximize=True,
         metrics=['auc'],
     )
-# record for stacker train
-df_sub, stacker_train = \
-    single_xgb.oof(params=params_for_submit, best_rounds=best_rounds, sub=df_sub, do_logit=False)
-df_sub.to_csv('../../data/output/sub_single_xgb_001.csv', index=False)
-df_sub.to_csv('../../data/for_stacker/sub_single_xgb_001_test.csv', index=False)
-s_train = pd.DataFrame()
-s_train['id'] = train_id
-s_train['prob'] = stacker_train
-s_train.to_csv('../../data/for_stacker/single_xgb_001_train.csv', index=False)
-print('XGBoost done')
+# use oof for single submit file and train file
+df_sub, stacker_train = single_xgb.oof(
+    params=params_for_submit,
+    best_rounds=best_rounds,
+    sub=df_sub,
+    do_logit=False
+)
+# write submit file and train file to local disk
+write_data(
+    df_sub=df_sub,
+    train_id=train_id,
+    stacker_train=stacker_train,
+    sub_filename='sub_single_xgb_001_test.csv',
+    train_filename='single_xgb_001_train.csv'
+)
+logging.info('Single XGBoost done')

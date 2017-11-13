@@ -11,7 +11,7 @@ import catboost as cbt
 from sklearn.model_selection import GridSearchCV, train_test_split, StratifiedKFold
 from sklearn.metrics import make_scorer
 from evaluation import GiniEvaluation, gini_score
-from single_model_utils import SingleXGB
+from model_utils import SingleXGB
 
 from stack_ensemble import StackEnsemble
 from sklearn.linear_model import LogisticRegression

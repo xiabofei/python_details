@@ -3,6 +3,7 @@
 # FE:
 #    1) add 'negative one vals' features
 #    2) drop ['ps_ind_10_bin', 'ps_ind_11_bin', 'ps_ind_12_bin', 'ps_ind_13_bin']
+# LB 0.281
 #################################################################################
 
 import pandas as pd
@@ -15,7 +16,8 @@ import catboost as cbt
 from sklearn.model_selection import GridSearchCV, RandomizedSearchCV, train_test_split, StratifiedKFold
 from sklearn.metrics import make_scorer
 from evaluation import GiniEvaluation, gini_score
-from single_model_utils import SingleLGBM
+from model_utils import SingleLGBM
+from io_utils import read_data, comm_skf, write_data, Number_of_folds
 from fe import FeatureImportance
 
 from logging_manage import initialize_logger
@@ -27,20 +29,10 @@ from ipdb import set_trace as st
 
 ## logging setting
 initialize_logger(output_dir='../../data/log/')
-
 ## Data Loading
-root_dir = '../../data/input/'
-df_train = pd.read_csv(os.path.join(root_dir, 'train.csv'), na_values=-1)
-df_train.drop([149161], axis=0, inplace=True)
-df_test = pd.read_csv(os.path.join(root_dir, 'test.csv'), na_values=-1)
-
-## Separate label & feature
-df_y = df_train['target']
-train_id = df_train['id']
-df_train.drop(['id', 'target'], axis=1, inplace=True)
-df_sub = df_test['id'].to_frame()
-df_sub['target'] = 0.0
-df_test.drop(['id'], axis=1, inplace=True)
+df_train, df_y, df_test, df_sub, train_id = read_data()
+## Common skf
+skf = comm_skf
 
 ## Data Processing and Feature Engineering
 transformer_one = [
@@ -62,7 +54,7 @@ def fast_feature_importance(df_train, df_y, feval, feature_watch_list):
     params_for_fi = {
         'objective': 'binary',
         'learning_rate': 0.03,
-        'num_leaves': 31,
+        'num_leaves': 16,
         'min_data_in_leaf': 500,
         'max_bin': 10,
         'feature_fraction': 0.8,
@@ -79,38 +71,23 @@ def fast_feature_importance(df_train, df_y, feval, feature_watch_list):
         feature_watch_list=feature_watch_list,
     )
     return ret
-
-# fi = fast_feature_importance(
-#     df_train=df_train,
-#     df_y=df_y,
-#     feval=GiniEvaluation.gini_lgbm,
-#     feature_watch_list=['negative_one_vals']
-# )
-
 # feature and label for train
 X = df_train.values
 y = df_y.values
 
 gc.collect()
 
-## kfolds
-N = 5
-skf = StratifiedKFold(n_splits=N, shuffle=True, random_state=2017)
-
 ## define single lgbm model
-single_lgbm = SingleLGBM(X=X, y=y, test=df_test, N=5, skf=skf)
+single_lgbm = SingleLGBM(X=X, y=y, test=df_test, skf=skf, N=Number_of_folds)
 
 '''
 params_for_n_round = {
     'objective': 'binary',
     'learning_rate': 0.05,
-    'num_leaves': 31,
-    'max_depth' : 9,
-    'min_data_in_leaf': 5000,
-    'max_bin': 10,
-    'feature_fraction': 0.8,
-    'bagging_fraction': 0.8,
-    'bagging_freq': 1,
+    'num_leaves': 25,
+    'min_child_weight' : 85,
+    'max_bin' : 10,
+    'max_depth' : 10,
     'verbosity': 0,
 }
 best_rounds, best_score = single_lgbm.cv(
@@ -118,7 +95,6 @@ best_rounds, best_score = single_lgbm.cv(
     num_boost_round=500,
     feval=GiniEvaluation.gini_lgbm
 )
-
 st(context=21)
 lgbm_param = dict(
     boosting_type='gbdt',
@@ -153,18 +129,18 @@ ret = single_lgbm.grid_search_tuning(
 '''
 params_for_submit = {
     'objective': 'binary',
-    'learning_rate': 0.03,
+    'learning_rate': 0.01,
     'max_depth': 7,
     'num_leaves': 25,
-    'min_child_weight' : 85,
+    'min_child_weight' : 10,
     'min_split_gain' : 0.1,
     'min_data_in_leaf': 500,
     'max_bin': 10,
-    'feature_fraction': 0.6,
-    'bagging_fraction': 0.6,
+    'feature_fraction': 0.7,
+    'bagging_fraction': 0.7,
     'bagging_freq': 1,
     'reg_alpha' : 0.5,
-    'reg_lambda' : 5,
+    'reg_lambda' : 0.5,
     'verbose': -1,
     'seed' : 2017
 }
@@ -173,17 +149,22 @@ best_rounds = 20
 if do_cv:
     best_rounds = single_lgbm.cv(
         params=params_for_submit,
-        num_boost_round=1000,
+        num_boost_round=2000,
         feval=GiniEvaluation.gini_lgbm,
     )
 # record for stacker train
-df_sub, stacker_train = \
-    single_lgbm.oof(params=params_for_submit, best_rounds=best_rounds, sub=df_sub, do_logit=True)
-df_sub.to_csv('../../data/output/sub_single_lgbm_001.csv', index=False)
-df_sub.to_csv('../../data/for_stacker/sub_single_lgbm_001_test.csv', index=False)
-s_train = pd.DataFrame()
-s_train['id'] = train_id
-s_train['prob'] = stacker_train
-s_train.to_csv('../../data/for_stacker/single_lgbm_001_train.csv', index=False)
-print('LightGBM done')
+df_sub, stacker_train = single_lgbm.oof(
+    params=params_for_submit,
+    best_rounds=best_rounds,
+    sub=df_sub,
+    do_logit=False,
+)
 
+write_data(
+    df_sub=df_sub,
+    stacker_train=stacker_train,
+    train_id=train_id,
+    sub_filename='sub_single_lgbm_001_test.csv',
+    train_filename='single_lgbm_001_train.csv'
+)
+logging.info('LightGBM done')
