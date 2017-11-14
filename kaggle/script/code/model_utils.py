@@ -11,6 +11,7 @@ import lightgbm as lgbm
 import catboost as cat
 
 from sklearn.model_selection import GridSearchCV, RandomizedSearchCV
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import make_scorer
 
 from ipdb import set_trace as st
@@ -166,7 +167,74 @@ class SingleLGBM(Single):
         for score in lgbm_gs.grid_scores_:
             logging.info('grid_scores_ : {0}'.format(score))
         gc.collect()
-        return lgbm_gs.best_score_, lgbm_gs.best_params_, lgbm_gs.grid_scores_
+        return lgbm_gs.best_params_
+
+    def random_grid_search_tuning(self,lgbm_param, lgbm_param_distribution, f_score, n_jobs, n_iter):
+        lgbm_estimator = lgbm.LGBMClassifier(**lgbm_param)
+        lgbm_rgs = RandomizedSearchCV(
+            estimator=lgbm_estimator,
+            param_distributions=lgbm_param_distribution,
+            cv=self.skf,
+            scoring=make_scorer(f_score, greater_is_better=True, needs_proba=True),
+            n_iter=n_iter,
+            n_jobs=n_jobs,
+            verbose=2,
+            refit=False,
+        )
+        time_begin = time.time()
+        lgbm_rgs.fit(self.X, self.y)
+        time_end = time.time()
+        logging.info('Random grid search eat time {0}'.format(time_end - time_begin))
+        logging.info('best_score_ : {0}'.format(lgbm_rgs.best_score_))
+        logging.info('best_params_ : {0}'.format(lgbm_rgs.best_params_))
+        for score in lgbm_rgs.grid_scores_:
+            logging.info('grid_scores_ : {0}'.format(score))
+        gc.collect()
+        return lgbm_rgs.best_params_
+
+class SingleRF(Single):
+    def random_grid_search_tuning(self,rf_param, rf_param_distribution, f_score, n_jobs, n_iter):
+        rf_estimator = RandomForestClassifier(**rf_param)
+        rf_rgs = RandomizedSearchCV(
+            estimator=rf_estimator,
+            param_distributions=rf_param_distribution,
+            cv=self.skf,
+            scoring=make_scorer(f_score, greater_is_better=True, needs_proba=True),
+            n_iter=n_iter,
+            n_jobs=n_jobs,
+            verbose=2,
+            refit=False,
+        )
+        time_begin = time.time()
+        rf_rgs.fit(self.X, self.y)
+        time_end = time.time()
+        logging.info('Random grid search eat time {0}'.format(time_end - time_begin))
+        logging.info('best_score_ : {0}'.format(rf_rgs.best_score_))
+        logging.info('best_params_ : {0}'.format(rf_rgs.best_params_))
+        for score in rf_rgs.grid_scores_:
+            logging.info('grid_scores_ : {0}'.format(score))
+        gc.collect()
+        return rf_rgs.best_params_
+
+    def oof(self, params, sub, do_logit=True):
+        rf = RandomForestClassifier(**params)
+        stacker_train = np.zeros((self.X.shape[0], 1))
+        for index, (trn_idx, val_idx) in enumerate(self.skf.split(self.X, self.y)):
+            trn_x, val_x = self.X[trn_idx], self.X[val_idx]
+            trn_y, val_y = self.y[trn_idx], self.y[val_idx]
+            # train model
+            logging.info('Train model in fold {0}'.format(index))
+            rf.fit(trn_x, trn_y)
+            logging.info('Predict in fold {0}'.format(index))
+            stacker_train[val_idx,0] = rf.predict_proba(val_x)[:,1]
+            prob = rf.predict_proba(self.test.values)[:,1]
+            sub['target'] += prob / self.N
+        if do_logit:
+            sub['target'] = 1 / (1 + np.exp(-sub['target']))
+            stacker_train = 1 / (1 + np.exp(-stacker_train))
+        logging.info('{0} of folds'.format(self.N))
+        logging.info('Oof by single random forest model Done')
+        return sub, stacker_train
 
 class SingleCatboost(Single):
     def grid_search_tuning(self, cat_param, cat_param_grid, f_score, n_jobs):

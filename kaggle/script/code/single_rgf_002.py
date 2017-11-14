@@ -109,9 +109,9 @@ def target_encode(trn_series=None,  # Revised to encode validation series
 
 
 # Read data
-train_df = pd.read_csv('../input/train.csv', na_values="-1")  # .iloc[0:200,:]
+train_df = pd.read_csv('../../data/input/train.csv', na_values="-1")  # .iloc[0:200,:]
 train_df.drop([149161], axis=0, inplace=True)
-test_df = pd.read_csv('../input/test.csv', na_values="-1")
+test_df = pd.read_csv('../../data/input/test.csv', na_values="-1")
 
 # from olivier
 train_features = [
