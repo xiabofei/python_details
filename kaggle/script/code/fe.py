@@ -176,7 +176,7 @@ class Processer(object):
 
     @staticmethod
     def median_mean_range(df, opt_median=True, opt_mean=True):
-        col_names = [c for c in df.columns if ('_bin' not in c and '_oh_' not in c and 'negative_one' not in c and '_x_' not in c)]
+        col_names = [c for c in df.columns if ('_cat' not in c and '_bin' not in c and '_oh_' not in c and 'negative_one' not in c and '_x_' not in c)]
         logging.info('Columns be median range and mean range transformed {0}'.format(col_names))
         logging.info('Before {0}'.format(df.shape))
         if opt_median:
@@ -236,6 +236,7 @@ class Processer(object):
         logging.info('Before ohe : train {0}, test {1}'.format(df_train.shape, df_test.shape))
         combine = pd.concat([df_train, df_test], axis=0)
         for column in cat_features:
+            logging.info('Feature {0} OHE'.format(column))
             temp = pd.get_dummies(pd.Series(combine[column]), prefix=column)
             _abort_cols = []
             for c in temp.columns:
@@ -243,6 +244,7 @@ class Processer(object):
                     logging.info('column {0} unique value {1} less than threshold {2}'.format(c, temp[c].sum(), threshold))
                     _abort_cols.append(c)
             logging.info('Abort cat columns : {0}'.format(_abort_cols))
+            logging.info('feature {0} ohe columns {1}'.format(column, temp.columns))
             _remain_cols = [ c for c in temp.columns if c not in _abort_cols ]
             # check category number
             combine = pd.concat([combine, temp[_remain_cols]], axis=1)

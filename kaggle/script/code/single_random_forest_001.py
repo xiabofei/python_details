@@ -40,20 +40,22 @@ skf = comm_skf
 
 '''
 ## Data Processing and Feature Engineering
-transformer_one = [
+transformer = [
     (Processer.drop_columns, dict(col_names=df_train.columns[df_train.columns.str.startswith('ps_calc_')])),
     (Processer.drop_columns, dict(col_names=['ps_ind_10_bin', 'ps_ind_11_bin', 'ps_ind_12_bin', 'ps_ind_13_bin'])),
     (Processer.negative_one_vals, dict()),
+    (Processer.median_mean_range, dict(opt_median=True, opt_mean=False)),
+    (Processer.convert_reg_03, dict()),
     (Processer.dtype_transform, dict()),
 ]
 # execute transforms pipeline
 logging.info('Transform train data')
-df_train = Compose(transformer_one)(df_train)
+df_train = Compose(transformer)(df_train)
 logging.info('Transform test data')
-df_test = Compose(transformer_one)(df_test)
+df_test = Compose(transformer)(df_test)
 # execute ohe
 df_train, df_test = Processer.ohe(df_train, df_test, [a for a in df_train.columns if a.endswith('cat')])
-
+st(context=21)
 # handle missing value
 value_cols = [c for c in df_train.columns if '_cat' not in c and '_bin' not in c ]
 cat_cols = [c for c in df_train.columns if c not in value_cols ]
@@ -68,14 +70,15 @@ df_test[value_cols] = imputer_for_value.fit_transform(X=df_test[value_cols].valu
 gc.collect()
 df_train.to_csv('../../data/input/df_train_4_rf.csv', index=False)
 df_test.to_csv('../../data/input/df_test_4_rf.csv', index=False)
-
 st(context=21)
-
 '''
+
 logging.info('loading already processed train from disk file')
 df_train = pd.read_csv('../../data/input/df_train_4_rf.csv', index_col=None)
 logging.info('loading already processed test from disk file')
 df_test = pd.read_csv('../../data/input/df_test_4_rf.csv', index_col=None)
+
+feat_num = len(df_train.columns)
 
 # feature and label for train
 X = df_train.values
@@ -86,13 +89,13 @@ gc.collect()
 single_rf = SingleRF(X=X, y=y, test=df_test, skf=skf, N=Number_of_folds)
 
 rf_param = dict(
-    n_estimators=400,
+    n_estimators=500,
     criterion="gini",
-    max_depth=8,
+    max_depth=6,
     min_samples_split=2,
     min_samples_leaf=1,
     min_weight_fraction_leaf=0.,
-    max_features="auto",
+    max_features=int(np.sqrt(feat_num)),
     max_leaf_nodes=None,
     min_impurity_decrease=0.,
     min_impurity_split=None,
@@ -107,14 +110,15 @@ rf_param = dict(
 
 rf_param_distribution = dict(
     criterion=['gini', 'entropy'],
-    min_samples_split=list(set(np.random.randint(100,500,100))),
-    min_samples_leaf=list(set(np.random.randint(100,500,100))),
+    min_samples_split=list(set(np.random.randint(50,5000,100))),
+    min_samples_leaf=list(set(np.random.randint(50,5000,100))),
+    # max_features=np.multiply([int(np.sqrt(feat_num))], [1 ,2]) ,
 )
 
 best_params = single_rf.random_grid_search_tuning(
     rf_param=rf_param,
     rf_param_distribution=rf_param_distribution,
-    n_iter=50,
+    n_iter=20,
     f_score=gini_score,
     n_jobs=5,
 )

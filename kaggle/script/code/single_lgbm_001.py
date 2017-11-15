@@ -97,26 +97,26 @@ lgbm_param = dict(
     silent=True,
     early_stopping_rounds=50,
 )
-# lgbm_param_grid = dict(
-#     max_bin=[15, 45, 55, 65],
-# )
-# ret = single_lgbm.grid_search_tuning(
-#     lgbm_param=lgbm_param,
-#     lgbm_param_grid=lgbm_param_grid,
-#     f_score=gini_score,
-#     n_jobs=5
-# )
-# lgbm_param_distribution = dict(
-#     min_child_samples=list(set(np.random.randint(0,20,15))),
-# )
-# ret = single_lgbm.random_grid_search_tuning(
-#     lgbm_param=lgbm_param,
-#     lgbm_param_distribution=lgbm_param_distribution,
-#     f_score=gini_score,
-#     n_jobs=5,
-#     n_iter=10,
-# )
-# st(context=21)
+lgbm_param_grid = dict(
+    max_bin=[15, 45, 55, 65],
+)
+ret = single_lgbm.grid_search_tuning(
+    lgbm_param=lgbm_param,
+    lgbm_param_grid=lgbm_param_grid,
+    f_score=gini_score,
+    n_jobs=5
+)
+lgbm_param_distribution = dict(
+    min_child_samples=list(set(np.random.randint(0,20,15))),
+)
+ret = single_lgbm.random_grid_search_tuning(
+    lgbm_param=lgbm_param,
+    lgbm_param_distribution=lgbm_param_distribution,
+    f_score=gini_score,
+    n_jobs=5,
+    n_iter=10,
+)
+st(context=21)
 params_for_submit = {
     'objective': 'binary',
     'learning_rate': 0.01,
