@@ -5,6 +5,7 @@ import logging
 import gc
 import operator
 from sklearn.model_selection import train_test_split, StratifiedKFold
+from sklearn.preprocessing import normalize
 from sklearn.preprocessing import MinMaxScaler, LabelEncoder
 from collections import OrderedDict
 
@@ -54,32 +55,32 @@ class FeatureImportance(object):
             return cv_records
 
     @staticmethod
-    def lgbm_fi(params, df_data, df_label, feval, num_boost_round,feature_watch_list):
-            dtrn, deval, ltrn, leval = \
-                train_test_split(df_data, df_label, test_size=0.25, shuffle=True, random_state=99)
-            model = lgbm.train(
-                params=params,
-                train_set=lgbm.Dataset(data=dtrn.values, label=ltrn.values),
-                valid_sets=lgbm.Dataset(data=deval.values, label=leval.values),
-                num_boost_round=num_boost_round,
-                feval=feval,
-                early_stopping_rounds=50,
-                verbose_eval=10,
+    def lgbm_fi(params, df_data, df_label, feval, num_boost_round, feature_watch_list):
+        dtrn, deval, ltrn, leval = \
+            train_test_split(df_data, df_label, test_size=0.25, shuffle=True, random_state=99)
+        model = lgbm.train(
+            params=params,
+            train_set=lgbm.Dataset(data=dtrn.values, label=ltrn.values),
+            valid_sets=lgbm.Dataset(data=deval.values, label=leval.values),
+            num_boost_round=num_boost_round,
+            feval=feval,
+            early_stopping_rounds=50,
+            verbose_eval=10,
+        )
+        feature_importance = MinMaxScaler().fit_transform(model.feature_importance().reshape(-1, 1))
+        feature_importance = OrderedDict(
+            sorted(
+                {name: score[0] for name, score in zip(df_data.columns, feature_importance)}.items(),
+                key=lambda x: x[1],
             )
-            feature_importance = MinMaxScaler().fit_transform(model.feature_importance().reshape(-1, 1))
-            feature_importance = OrderedDict(
-                sorted(
-                    {name:score[0] for name,score in zip(df_data.columns, feature_importance)}.items(),
-                    key=lambda x:x[1],
-                )
-            )
-            for feature in feature_watch_list:
-                corr = df_data.corrwith(df_data[feature])
-                corr.sort_values(inplace=True)
-                logging.info('feature \'{0}\' score \'{1}\''.format(feature, feature_importance[feature]))
-                logging.info('feature \'{0}\' correlation top10 \'{1}\''.format(feature, corr[0:10]))
-                logging.info('feature \'{0}\' correlation bottom10 \'{1}\''.format(feature, corr[-10:]))
-            return feature_importance
+        )
+        for feature in feature_watch_list:
+            corr = df_data.corrwith(df_data[feature])
+            corr.sort_values(inplace=True)
+            logging.info('feature \'{0}\' score \'{1}\''.format(feature, feature_importance[feature]))
+            logging.info('feature \'{0}\' correlation top10 \'{1}\''.format(feature, corr[0:10]))
+            logging.info('feature \'{0}\' correlation bottom10 \'{1}\''.format(feature, corr[-10:]))
+        return feature_importance
 
 
 class Compose(object):
@@ -94,6 +95,18 @@ class Compose(object):
 
 
 class Processer(object):
+    @staticmethod
+    def normalization(df, col_names):
+        for col_name in col_names:
+            if col_name not in df.columns:
+                raise ValueError('col_name {0} not in df'.format(col_name))
+        for col_name in col_names:
+            _max = df[col_name].max()
+            _min = df[col_name].min()
+            df[col_name] = df[col_name].apply(lambda x: ((x - _min) / (_max - _min + 1e-7)) - 0.5)
+            df[col_name] = df[col_name].apply(lambda x:2.0*x)
+        return df
+
     @staticmethod
     def remain_columns(df, col_names):
         logging.info('Before remain columns {0}'.format(df.shape))
@@ -176,7 +189,8 @@ class Processer(object):
 
     @staticmethod
     def median_mean_range(df, opt_median=True, opt_mean=True):
-        col_names = [c for c in df.columns if ('_cat' not in c and '_bin' not in c and '_oh_' not in c and 'negative_one' not in c and '_x_' not in c)]
+        col_names = [c for c in df.columns if (
+        '_cat' not in c and '_bin' not in c and '_oh_' not in c and 'negative_one' not in c and '_x_' not in c)]
         logging.info('Columns be median range and mean range transformed {0}'.format(col_names))
         logging.info('Before {0}'.format(df.shape))
         if opt_median:
@@ -195,7 +209,7 @@ class Processer(object):
 
     @staticmethod
     def negative_one_vals(df):
-        df['negative_one_vals'] = MinMaxScaler().fit_transform(df.isnull().sum(axis=1).values.reshape(-1,1))
+        df['negative_one_vals'] = MinMaxScaler().fit_transform(df.isnull().sum(axis=1).values.reshape(-1, 1))
         return df
 
     @staticmethod
@@ -208,6 +222,7 @@ class Processer(object):
                     break
             M = (integer - F) // 27
             return F, M
+
         df['ps_reg_A_cat'] = df['ps_reg_03'].apply(lambda x: ps_reg_03_recon(x)[0] if not np.isnan(x) else x)
         # df['ps_reg_M'] = df['ps_reg_03'].apply(lambda x: ps_reg_03_recon(x)[1] if not np.isnan(x) else x)
         return df
@@ -229,7 +244,6 @@ class Processer(object):
         gc.collect()
         return df_train, df_test
 
-
     @staticmethod
     def ohe(df_train, df_test, cat_features, threshold=50):
         # pay attention train & test should get_dummies together
@@ -241,11 +255,12 @@ class Processer(object):
             _abort_cols = []
             for c in temp.columns:
                 if temp[c].sum() < threshold:
-                    logging.info('column {0} unique value {1} less than threshold {2}'.format(c, temp[c].sum(), threshold))
+                    logging.info(
+                        'column {0} unique value {1} less than threshold {2}'.format(c, temp[c].sum(), threshold))
                     _abort_cols.append(c)
             logging.info('Abort cat columns : {0}'.format(_abort_cols))
             logging.info('feature {0} ohe columns {1}'.format(column, temp.columns))
-            _remain_cols = [ c for c in temp.columns if c not in _abort_cols ]
+            _remain_cols = [c for c in temp.columns if c not in _abort_cols]
             # check category number
             combine = pd.concat([combine, temp[_remain_cols]], axis=1)
             combine = combine.drop([column], axis=1)

@@ -137,13 +137,13 @@ stacker_params = {
     'objective': 'binary:logistic',
     'eval_metric': 'logloss',
     'eta': 0.01,
-    'max_depth': 4,
+    'max_depth': 3,
     'seed': 2017,
     'nthread': 5,
     'silent': 1,
 }
 st(context=21)
-DO_CV = False
+DO_CV = True
 best_rounds = 300
 if DO_CV:
     best_rounds = stacker.cv(

@@ -91,30 +91,6 @@ df_train, df_test = Processer.add_combine(df_train, df_test,'ps_reg_01', 'ps_car
 # execute ohe
 df_train, df_test = Processer.ohe(df_train, df_test, [a for a in df_train.columns if a.endswith('cat')])
 
-# fast feature importance evaluation by xgboost
-'''
-params_for_fi = {
-    'objective': 'binary:logistic',
-    'eval_metric': 'logloss',
-    'eta': 0.05,
-    'max_depth': 5,
-    'subsample': 0.9,
-    'colsample_bytree': 0.9,
-    'seed': 2017,
-    'nthread': 8,
-    'silent': 1,
-}
-df_feature_importance = FeatureImportance.xgb_fi(
-    params=params_for_fi,
-    data=df_train,
-    label=df_y,
-    feval=GiniEvaluation.gini_xgb,
-    maximize=True,
-    num_boost_round=100, cv=True,
-)
-st(context=21)
-'''
-
 # feature and label for train
 X = df_train.values
 y = df_y.values
@@ -124,71 +100,7 @@ gc.collect()
 ## folds
 skf = comm_skf
 
-## Grid Search
-'''
-params_for_n_round = {
-    'objective': 'binary:logistic',
-    'eval_metric': 'logloss',
-    'eta': 0.07,
-    'max_depth': 5,
-    'min_child_weight':1,
-    'gamma': 0,
-    'subsample': 0.8,
-    'colsample_bytree': 0.8,
-    'scale_pos_weight': 1,
-    'nthread': 6,
-    'silent': 1,
-    'seed': 2017,
-}
-best_rounds = single_xgb.cv(
-    params=params_for_n_round,
-    num_boost_round=500,
-    feval=GiniEvaluation.gini_xgb,
-    feval_name='gini',
-    maximize=True,
-    metrics=['auc'],
-)
-'''
 single_xgb = SingleXGB(X=X, y=y, test=df_test, skf=skf, N=Number_of_folds)
-'''
-xgb_param = dict(
-    # target
-    objective='binary:logistic',
-    # booster parameters
-    booster='gbtree',
-    n_estimators=186,
-    # tree-based parameters
-    max_depth=5,
-    min_child_weight=1,
-    gamma=0,
-    subsample=0.8,
-    colsample_bytree=0.8,
-    scale_pos_weight=1,
-    # max_delta_step=0,
-    # regularization parameters
-    # reg_alpha=10.4,
-    # reg_lambda=5,
-    # learning rate
-    learning_rate=0.07,
-    # others
-    n_jobs=2,
-    # base_score=0.5,
-    random_state=2017,
-    # missing=None,
-    early_stopping_rounds=40,
-    verbose_eval=10,
-)
-xgb_param_grid = dict(
-    max_depth=[4, 5, 6],
-    min_child_weight=[1, 2, 3, 4, 5, 6, 7, 8, 9],
-)
-ret = single_xgb.grid_search_tuning(
-    xgb_param=xgb_param,
-    xgb_param_grid=xgb_param_grid,
-    f_score=gini_score,
-    n_jobs=5
-)
-'''
 params_for_submit = {
     'objective': 'binary:logistic',
     'eval_metric': 'logloss',

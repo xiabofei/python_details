@@ -3,10 +3,29 @@ from sklearn.model_selection import StratifiedKFold
 import pandas as pd
 import os
 
+def check_nan(df):
+    return df.isnull().sum().sum()
+
+
 def read_data():
     root_dir = '../../data/input/'
     df_train = pd.read_csv(os.path.join(root_dir, 'train.csv'), na_values=-1)
     df_train.drop([149161], axis=0, inplace=True)
+    df_test = pd.read_csv(os.path.join(root_dir, 'test.csv'), na_values=-1)
+    df_y = df_train['target']
+    train_id = df_train['id']
+    df_train.drop(['id', 'target'], axis=1, inplace=True)
+    df_sub = df_test['id'].to_frame()
+    df_sub['target'] = 0.0
+    df_test.drop(['id'], axis=1, inplace=True)
+    return df_train, df_y, df_test, df_sub, train_id
+
+def read_data_nn():
+    root_dir = '../../data/input/'
+    df_train = pd.read_csv(os.path.join(root_dir, 'train.csv'), na_values=-1)
+    df_train.drop([149161], axis=0, inplace=True)
+    tmp = pd.DataFrame(data=df_train.values, columns=df_train.columns, index=None)
+    df_train = tmp
     df_test = pd.read_csv(os.path.join(root_dir, 'test.csv'), na_values=-1)
     df_y = df_train['target']
     train_id = df_train['id']

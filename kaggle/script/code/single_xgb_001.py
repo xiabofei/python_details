@@ -55,59 +55,6 @@ y = df_y.values
 
 gc.collect()
 
-## Grid Search
-'''
-params_for_n_round = {
-    'objective': 'binary:logistic',
-    'eval_metric': 'logloss',
-    'eta': 0.08,
-    'max_depth': 5,
-    'min_child_weight':9,
-    'gamma': 0,
-    'subsample': 0.8,
-    'colsample_bytree': 0.8,
-    'scale_pos_weight': 1,
-    'nthread': 6,
-    'silent': 1,
-    'seed': 2017,
-}
-xgb_param = dict(
-    # target
-    objective='binary:logistic',
-    # booster parameters
-    booster='gbtree',
-    # n_estimators=192,
-    # tree-based parameters
-    max_depth=5,
-    min_child_weight=9.15,
-    gamma=0.59,
-    subsample=0.8,
-    colsample_bytree=0.8,
-    scale_pos_weight=1,
-    max_delta_step=1.9,
-    # regularization parameters
-    reg_alpha=10.4,
-    reg_lambda=5,
-    # learning rate
-    learning_rate=0.04,
-    # others
-    n_jobs=8,
-    # base_score=0.5,
-    random_state=2017,
-    missing=None,
-    # early_stopping_rounds=50,
-    # verbose_eval=10,
-)
-xgb_param_grid = dict(
-)
-ret = single_xgb.grid_search_tuning(
-    xgb_param=xgb_param,
-    xgb_param_grid=xgb_param_grid,
-    f_score=gini_score,
-    n_jobs=5
-)
-'''
-
 ## cv and oof
 params_for_submit = {
     'objective': 'binary:logistic',

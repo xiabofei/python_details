@@ -19,6 +19,7 @@ candidate_cols = concat_df.columns
 concat_df = concat_df.rank() / concat_df.shape[0]
 # concat_df = concat_df.rank()
 
+st(context=21)
 
 concat_df.to_csv('../../data/submit_candidates/concat_df.csv', index=False, sep='\t')
 

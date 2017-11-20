@@ -8,13 +8,11 @@ import numpy as np
 
 from sklearn.model_selection import StratifiedKFold
 from sklearn.model_selection import cross_val_score
+from io_utils import comm_skf, Number_of_folds
 
 from xgboost import XGBClassifier
 from lightgbm import LGBMClassifier
-from catboost import CatBoostClassifier
 from sklearn.linear_model import LogisticRegression
-from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier, ExtraTreesClassifier, \
-    AdaBoostClassifier
 
 from logging_manage import initialize_logger
 import logging
@@ -67,10 +65,6 @@ test = transform(test)
 col = [c for c in train.columns if c not in ['id', 'target']]
 col = [c for c in col if not c.startswith('ps_calc_')]
 
-# dups = train[train.duplicated(subset=col, keep=False)]
-#
-# train = train[~(train['id'].isin(dups['id'].values))]
-
 target_train = train['target']
 id_train = train['id']
 train = train[col]
@@ -89,26 +83,19 @@ class Ensemble(object):
         y = np.array(y)
         T = np.array(T)
 
-        folds = list(StratifiedKFold(n_splits=self.n_splits, shuffle=True, random_state=2017).split(X, y))
-
         S_train = np.zeros((X.shape[0], len(self.base_models)))
         S_test = np.zeros((T.shape[0], len(self.base_models)))
         for i, clf in enumerate(self.base_models):
 
             S_test_i = np.zeros((T.shape[0], self.n_splits))
 
-            for j, (train_idx, test_idx) in enumerate(folds):
+            for j, (train_idx, test_idx) in enumerate(comm_skf.split(X, y)):
                 X_train = X[train_idx]
                 y_train = y[train_idx]
                 X_holdout = X[test_idx]
-                # y_holdout = y[test_idx]
-
                 logging.info("Fit {0} fold {1}".format(str(clf).split('(')[0], j + 1))
                 clf.fit(X=X_train, y=y_train)
-                #                cross_score = cross_val_score(clf, X_train, y_train, cv=3, scoring='roc_auc')
-                #                print("    cross_score: %.5f" % (cross_score.mean()))
                 y_pred = clf.predict_proba(X_holdout)[:, 1]
-                # record in-fold predict results
                 S_train[test_idx, i] = y_pred
                 S_test_i[:, j] = clf.predict_proba(T)[:, 1]
             S_test[:, i] = S_test_i.mean(axis=1)
@@ -116,6 +103,7 @@ class Ensemble(object):
         results = cross_val_score(self.stacker, S_train, y, cv=5, scoring='roc_auc')
         logging.info("Stacker score: {0}".format(results.mean()))
 
+        # !!! fit on whole S_train and predict res_train brings data leak !!!
         self.stacker.fit(S_train, y)
         res_test = self.stacker.predict_proba(S_test)[:, 1]
         res_train = self.stacker.predict_proba(S_train)[:,1]
@@ -178,7 +166,7 @@ lgb_model_3 = LGBMClassifier(**lgb_params_3)
 log_model = LogisticRegression()
 
 stack = Ensemble(
-    n_splits=5,
+    n_splits=Number_of_folds,
     stacker=log_model,
     base_models=(xgb_model, lgb_model_1, lgb_model_2, lgb_model_3)
 )
@@ -200,6 +188,7 @@ sub_train.to_csv('../../data/for_stacker/simple_stacker_001_mix_train.csv', inde
 
 ## Individual predict result for stack ensemble
 # predict on train by four single models
+# no data leak here
 stacker_train = pd.DataFrame()
 stacker_train['id'] = id_train
 stacker_train['xgb'] = s_train[:,0]

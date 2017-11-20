@@ -18,6 +18,8 @@ from sklearn.model_selection import train_test_split
 from sklearn.model_selection import KFold
 
 from evaluation import gini_score
+from io_utils import *
+from fe import *
 
 from logging_manage import initialize_logger
 import logging
@@ -35,59 +37,65 @@ def eval_gini(a, p):
         return giniSum / len(actual)
     return _gini(a, p) / _gini(a, a)
 
-def gini_xgb(preds, dtrain):
-    labels = dtrain.get_label()
-    gini_score = eval_gini(labels, preds)
-    return [('gini', gini_score)]
 
-# Read data
-train_df = pd.read_csv('../../data/input/train.csv', na_values="-1")
-train_df.drop([149161], axis=0, inplace=True)
-test_df = pd.read_csv('../../data/input/test.csv', na_values="-1")
+## Data Loading
+df_train, df_y, df_test, df_sub, train_id = read_data()
 
-# Process data
-id_test = test_df['id'].values
-id_train = train_df['id'].values
+## Data Processing and Feature Engineering
+transformer_one = [
+    (Processer.drop_columns, dict(col_names=df_train.columns[df_train.columns.str.startswith('ps_calc_')])),
+    (Processer.drop_columns, dict(col_names=['ps_ind_10_bin', 'ps_ind_11_bin', 'ps_ind_12_bin', 'ps_ind_13_bin'])),
+    (Processer.negative_one_vals, dict()),
+    (Processer.dtype_transform, dict()),
+]
+# execute transforms pipeline
+logging.info('Transform train data')
+df_train = Compose(transformer_one)(df_train)
+logging.info('Transform test data')
+df_test = Compose(transformer_one)(df_test)
+# execute ohe
+df_train, df_test = Processer.ohe(df_train, df_test, [a for a in df_train.columns if a.endswith('cat')])
 
-train_df = train_df.fillna(999)
-test_df = test_df.fillna(999)
+# feature and label for train
+X = df_train.values
+y = df_y.values
 
-col_to_drop = train_df.columns[train_df.columns.str.startswith('ps_calc_')]
-train_df = train_df.drop(col_to_drop, axis=1)
-test_df = test_df.drop(col_to_drop, axis=1)
-
-for c in train_df.select_dtypes(include=['float64']).columns:
-    train_df[c] = train_df[c].astype(np.float32)
-    test_df[c] = test_df[c].astype(np.float32)
-for c in train_df.select_dtypes(include=['int64']).columns[2:]:
-    train_df[c] = train_df[c].astype(np.int8)
-    test_df[c] = test_df[c].astype(np.int8)
-
-y = train_df['target']
-X = train_df.drop(['target', 'id'], axis=1)
-y_valid_pred = 0 * y
-X_test = test_df.drop(['id'], axis=1)
-y_test_pred = 0
-
-logging.info('Train data shape : {0}'.format(X.shape))
-logging.info('Test data shape : {0}'.format(X_test.shape))
-
+gc.collect()
 
 # Set up folds
 skf = comm_skf
 
+
 # Set up classifier
-'''
+single_catboost = SingleCatboost(X=X, y=y, test=df_test, skf=skf, N=Number_of_folds)
+
 cat_param = dict(
     learning_rate=LEARNING_RATE,
     depth=6,
-    l2_leaf_reg = 14,
+    l2_leaf_reg = 16,
     rsm=1,
     iterations = MAX_ROUNDS,
     loss_function='Logloss',
     random_seed=2017,
     thread_count=2,
+    od_wait=100,
 )
+cat_param_distribution = dict(
+    l2_leaf_reg = list(set(np.random.uniform(15,20,200))),
+    rsm=list(set(np.random.uniform(0.8,0.999, 200))),
+    nan_mode =['Min', 'Max'],
+    bagging_temperature=list(set(np.random.uniform(0.7,1,200))),
+    approx_on_full_history=[True,False],
+)
+best_score = single_catboost.random_grid_search_tuning(
+    cat_param=cat_param,
+    cat_param_distribution=cat_param_distribution,
+    f_score=gini_score,
+    n_iter=50,
+    n_jobs=5
+)
+
+'''
 cat_param_grid = dict(
     depth=[5, 6, 7],
     l2_leaf_reg = [11, 13, 14, 15, 16],
@@ -99,9 +107,6 @@ best_score, best_params, _ = single_catboost.grid_search_tuning(
     f_score=gini_score,
     n_jobs=5,
 )
-'''
-single_catboost = SingleCatboost(X=X, y=y, test=X_test, skf=skf, N=Number_of_folds)
-
 # Run CV
 cat_param_submit = dict(
     learning_rate=LEARNING_RATE,
@@ -141,3 +146,4 @@ sub = pd.DataFrame()
 sub['id'] = id_test
 sub['target'] = y_test_pred
 sub.to_csv('../../data/for_stacker/sub_single_catboost_001_test.csv', float_format='%.7f', index=False)
+'''

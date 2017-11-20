@@ -1,5 +1,6 @@
 # encoding = utf8
 
+import pickle
 import numpy as np
 import logging
 import time
@@ -10,6 +11,7 @@ import xgboost as xgb
 import lightgbm as lgbm
 import catboost as cat
 
+from keras.wrappers.scikit_learn import KerasClassifier
 from sklearn.model_selection import GridSearchCV, RandomizedSearchCV
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import make_scorer
@@ -76,7 +78,10 @@ class SingleXGB(Single):
     def oof(self, params, best_rounds, sub, do_logit=True):
         stacker_train = np.zeros((self.X.shape[0], 1))
         dtest = xgb.DMatrix(data=self.test.values)
+        idx = []
         for index, (trn_idx, val_idx) in enumerate(self.skf.split(self.X, self.y)):
+            idx.append(trn_idx)
+            '''
             trn_x, val_x = self.X[trn_idx], self.X[val_idx]
             trn_y, val_y = self.y[trn_idx], self.y[val_idx]
             dtrn = xgb.DMatrix(data=trn_x, label=trn_y)
@@ -93,11 +98,32 @@ class SingleXGB(Single):
             prob = cv_model.predict(dtest, ntree_limit=best_rounds)
             stacker_train[val_idx,0] = cv_model.predict(dval, ntree_limit=best_rounds)
             sub['target'] += prob / self.N
+            '''
         if do_logit:
             sub['target'] = 1 / (1 + np.exp(-sub['target']))
             stacker_train = 1 / (1 + np.exp(-stacker_train))
         logging.info('{0} of folds'.format(self.N))
         logging.info('Oof by single xgboost model Done')
+        pickle.dump(idx, open('xgb.pkl', 'w'))
+        st(context=21)
+        return sub, stacker_train
+
+class SingleNN(Single):
+    def oof(self, model, params, sub):
+        stacker_train = np.zeros((self.X.shape[0], 1))
+        for index, (trn_idx, val_idx) in enumerate(self.skf.split(self.X, self.y)):
+            trn_x, val_x = self.X[trn_idx], self.X[val_idx]
+            trn_y, val_y = self.y[trn_idx], self.y[val_idx]
+            # train model
+            logging.info('Train model in fold {0}'.format(index))
+            history = model.fit(x=trn_x, y=trn_y, validation_data=(val_x, val_y), shuffle=True)
+            st(context=21)
+            logging.info('Predict in fold {0}'.format(index))
+            prob = model.predict(x=self.test)
+            stacker_train[val_idx,0] = model.predict(val_x)
+            sub['target'] += prob / self.N
+        logging.info('{0} of folds'.format(self.N))
+        logging.info('Oof by nn model Done')
         return sub, stacker_train
 
 class SingleLGBM(Single):
@@ -124,7 +150,10 @@ class SingleLGBM(Single):
 
     def oof(self, params, best_rounds, sub, do_logit=True):
         stacker_train = np.zeros((self.X.shape[0], 1))
+        idx = []
         for index, (trn_idx, val_idx) in enumerate(self.skf.split(self.X, self.y)):
+            idx.append(trn_idx)
+            '''
             trn_x, val_x = self.X[trn_idx], self.X[val_idx]
             trn_y, val_y = self.y[trn_idx], self.y[val_idx]
             dtrn = lgbm.Dataset(data=trn_x, label=trn_y)
@@ -140,11 +169,14 @@ class SingleLGBM(Single):
             prob = cv_model.predict(self.test.values, num_iteration=best_rounds)
             stacker_train[val_idx,0] = cv_model.predict(val_x, num_iteration=best_rounds)
             sub['target'] += prob / self.N
+            '''
         if do_logit:
             sub['target'] = 1 / (1 + np.exp(-sub['target']))
             stacker_train = 1 / (1 + np.exp(-stacker_train))
         logging.info('{0} of folds'.format(self.N))
         logging.info('Oof by single lightGBM model Done')
+        pickle.dump(idx, open('lgbm.pkl', 'w'))
+        st(context=21)
         return sub, stacker_train
 
     def grid_search_tuning(self, lgbm_param, lgbm_param_grid, f_score, n_jobs):
@@ -237,6 +269,29 @@ class SingleRF(Single):
         return sub, stacker_train
 
 class SingleCatboost(Single):
+    def random_grid_search_tuning(self,cat_param, cat_param_distribution, f_score, n_jobs, n_iter):
+        cat_estimator = cat.CatBoostClassifier(**cat_param)
+        cat_rgs = RandomizedSearchCV(
+            estimator=cat_estimator,
+            param_distributions=cat_param_distribution,
+            cv=self.skf,
+            scoring=make_scorer(f_score, greater_is_better=True, needs_proba=True),
+            n_iter=n_iter,
+            n_jobs=n_jobs,
+            verbose=2,
+            refit=False,
+        )
+        time_begin = time.time()
+        cat_rgs.fit(self.X, self.y)
+        time_end = time.time()
+        logging.info('Random grid search eat time {0}'.format(time_end - time_begin))
+        logging.info('best_score_ : {0}'.format(cat_rgs.best_score_))
+        logging.info('best_params_ : {0}'.format(cat_rgs.best_params_))
+        for score in cat_rgs.grid_scores_:
+            logging.info('grid_scores_ : {0}'.format(score))
+        gc.collect()
+        return cat_rgs.best_params_
+
     def grid_search_tuning(self, cat_param, cat_param_grid, f_score, n_jobs):
         cat_estimator = cat.CatBoostClassifier(**cat_param)
         cat_gs = GridSearchCV(

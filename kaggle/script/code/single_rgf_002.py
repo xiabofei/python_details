@@ -2,8 +2,6 @@
 #################################################################################
 # From : https://www.kaggle.com/tunguz/lb-0-286-with-submission-file/code
 # Claim LB : 0.282
-# Download valid file and submit file from kernel/Data
-# Have not try the kernel
 #################################################################################
 
 
@@ -11,6 +9,7 @@ from __future__ import print_function
 import numpy as np
 import pandas as pd
 from rgf.sklearn import RGFClassifier
+from io_utils import Number_of_folds, comm_skf
 from sklearn.model_selection import train_test_split
 from sklearn.model_selection import KFold
 from sklearn.preprocessing import LabelEncoder
@@ -19,35 +18,24 @@ import time
 import gc
 import subprocess
 import glob
+import pickle
 
 
 # Compute gini
-
-# from CPMP's kernel https://www.kaggle.com/cpmpml/extremely-fast-gini-computation
-@jit
-def eval_gini(y_true, y_prob):
-    y_true = np.asarray(y_true)
-    y_true = y_true[np.argsort(y_prob)]
-    ntrue = 0
-    gini = 0
-    delta = 0
-    n = len(y_true)
-    for i in range(n - 1, -1, -1):
-        y_i = y_true[i]
-        ntrue += y_i
-        gini += y_i * delta
-        delta += 1 - y_i
-    gini = 1 - 2 * gini / (ntrue * (n - ntrue))
-    return gini
+def eval_gini(a, p):
+    def _gini(actual, pred):
+        assert (len(actual) == len(pred))
+        all = np.asarray(np.c_[actual, pred, np.arange(len(actual))], dtype=np.float)
+        all = all[np.lexsort((all[:, 2], -1 * all[:, 1]))]
+        totalLosses = all[:, 0].sum()
+        giniSum = all[:, 0].cumsum().sum() / totalLosses
+        giniSum -= (len(actual) + 1) / 2.
+        return giniSum / len(actual)
+    return _gini(a, p) / _gini(a, a)
 
 
 # Funcitons from olivier's kernel
 # https://www.kaggle.com/ogrellier/xgb-classifier-upsampling-lb-0-283
-
-def gini_xgb(preds, dtrain):
-    labels = dtrain.get_label()
-    gini_score = -eval_gini(labels, preds)
-    return [('gini', gini_score)]
 
 
 def add_noise(series, noise_level):
@@ -185,21 +173,16 @@ f_cats = [f for f in X.columns if "_cat" in f]
 y_valid_pred = 0 * y
 y_test_pred = 0
 
-# Set up folds
-K = 5
-kf = KFold(n_splits=K, random_state=1, shuffle=True)
-np.random.seed(0)
-
 
 # Run CV
 
-def run_rgf():
+def run_rgf(max_leaf=1000, l2=0.01, sl2=0.01):
     model = RGFClassifier(
-        max_leaf=1000,
+        max_leaf=max_leaf,
         algorithm="RGF",
         loss="Log",
-        l2=0.01,
-        sl2=0.01,
+        l2=l2,
+        sl2=sl2,
         normalize=False,
         min_samples_leaf=10,
         n_iter=None,
@@ -223,10 +206,11 @@ def run_rgf():
 
     return pred, pred_test
 
-
-for i, (train_index, test_index) in enumerate(kf.split(train_df)):
+idx = []
+for i, (train_index, test_index) in enumerate(comm_skf.split(X=X, y=y)):
 
     # Create data for this fold
+    idx.append(train_index)
     y_train, y_valid = y.iloc[train_index].copy(), y.iloc[test_index]
     X_train, X_valid = X.iloc[train_index, :].copy(), X.iloc[test_index, :].copy()
     X_test = test_df.copy()
@@ -249,7 +233,7 @@ for i, (train_index, test_index) in enumerate(kf.split(train_df)):
     X_test = X_test.fillna(X_test.mean())
 
     # Generate validation predictions for this fold
-    pred, pred_test = run_rgf()
+    pred, pred_test = run_rgf(max_leaf=1200, l2=0.012)
 
     print("  Gini = ", eval_gini(y_valid, pred))
     y_valid_pred.iloc[test_index] = pred
@@ -261,19 +245,22 @@ for i, (train_index, test_index) in enumerate(kf.split(train_df)):
 
     gc.collect()
 
-y_test_pred /= K  # Average test set predictions
+
+pickle.dump(idx, open('rgf.pkl', 'w'))
+
+y_test_pred /= Number_of_folds  # Average test set predictions
 
 print("\nGini for full training set:")
-eval_gini(y, y_valid_pred)
+print(eval_gini(y, y_valid_pred))
 
 # Save validation predictions for stacking/ensembling
 val = pd.DataFrame()
 val['id'] = id_train
 val['target'] = y_valid_pred.values
-val.to_csv('rgf_valid.csv', float_format='%.6f', index=False)
+val.to_csv('../../data/for_stacker/rgf_valid.csv', float_format='%.6f', index=False)
 
 # Create submission file
 sub = pd.DataFrame()
 sub['id'] = id_test
 sub['target'] = y_test_pred
-sub.to_csv('rgf_submit.csv', float_format='%.6f', index=False)
+sub.to_csv('../../data/for_stacker/rgf_submit.csv', float_format='%.6f', index=False)
