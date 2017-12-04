@@ -2,8 +2,8 @@
 
 import numpy as np
 
-class GiniEvaluation(object):
 
+class GiniEvaluation(object):
     @classmethod
     def gini(cls, actual, pred, cmpcol=0, sortcol=1):
         assert (len(actual) == len(pred))
@@ -50,7 +50,9 @@ def gini_score(a, p):
         giniSum = all[:, 0].cumsum().sum() / totalLosses
         giniSum -= (len(actual) + 1) / 2.
         return giniSum / len(actual)
-    return _gini(a, p[:,1]) / _gini(a, a)
+
+    return _gini(a, p[:, 1]) / _gini(a, a)
+
 
 def gini_score_keras(a, p):
     def _gini(actual, pred, sample_weight=None):
@@ -61,4 +63,12 @@ def gini_score_keras(a, p):
         giniSum = all[:, 0].cumsum().sum() / totalLosses
         giniSum -= (len(actual) + 1) / 2.
         return giniSum / len(actual)
+
     return _gini(a, p) / _gini(a, a)
+
+
+def gini_score_svm(a, p):
+    return gini_score_keras(a, p)
+
+def gini_score_libffm(a, p):
+    return gini_score_keras(a, p)

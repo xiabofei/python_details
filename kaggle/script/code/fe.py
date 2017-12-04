@@ -96,15 +96,20 @@ class Compose(object):
 
 class Processer(object):
     @staticmethod
-    def normalization(df, col_names):
+    def normalization(df, col_names, val_range=0):
         for col_name in col_names:
             if col_name not in df.columns:
                 raise ValueError('col_name {0} not in df'.format(col_name))
         for col_name in col_names:
             _max = df[col_name].max()
             _min = df[col_name].min()
-            df[col_name] = df[col_name].apply(lambda x: ((x - _min) / (_max - _min + 1e-7)) - 0.5)
-            df[col_name] = df[col_name].apply(lambda x:2.0*x)
+            if val_range==0:
+                # range -1 to 1
+                df[col_name] = df[col_name].apply(lambda x: ((x - _min) / (_max - _min + 1e-7)) - 0.5)
+                df[col_name] = df[col_name].apply(lambda x:2.0*x)
+            if val_range==1:
+                # range 0 to 1
+                df[col_name] = df[col_name].apply(lambda x: ((x - _min) / (_max - _min + 1e-7)))
         return df
 
     @staticmethod

@@ -41,7 +41,7 @@ def get_model():
     
     model.compile(loss='binary_crossentropy',
             optimizer='adam',
-            metrics=['acc'])
+            metrics=['acc','auc'])
     return model
 
 ###############################################
