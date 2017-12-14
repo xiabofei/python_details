@@ -26,6 +26,10 @@ CLRF = '\n'
 TRAIN = 'train'
 VALID = 'valid'
 TEST = 'test'
+TRAIN_SPLIT_FILE_TEMP = '_fold_train.dat'
+VALID_SPLIT_FILE_TEMP = '_fold_valid.dat'
+SPLIT_SEP = '\t'
+K = 5
 
 wanted_words = 'yes,no,up,down,left,right,on,off,stop,go'.split(',')
 data_dir = '../data/input/train/audio'
@@ -204,18 +208,18 @@ def record_Kfold_result(data):
         label_count = {TRAIN: defaultdict(int), VALID: defaultdict(int)}
         # record train data in fold k
         fold_data_trn = data[k][TRAIN]
-        with open('../data/input/train/audio/{0}_fold_train.dat'.format(k), 'w') as f:
+        with open('../data/input/train/audio/{0}'.format(k)+TRAIN_SPLIT_FILE_TEMP, 'w') as f:
             for d in fold_data_trn:
                 assert d['label'] in labels_all, 'unwanted label {0} occurs'.format(d['label'])
                 label_count[TRAIN][d['label']] += 1
-                f.write('\t'.join([d['label'], d['file']]) + CLRF)
+                f.write(SPLIT_SEP.join([d['label'], d['file']]) + CLRF)
         # record valid data in fold k
         fold_data_vld = data[k][VALID]
-        with open('../data/input/train/audio/{0}_fold_valid.dat'.format(k), 'w') as f:
+        with open('../data/input/train/audio/{0}'.format(k)+VALID_SPLIT_FILE_TEMP, 'w') as f:
             for d in fold_data_vld:
                 assert d['label'] in labels_all, 'unwanted label {0} occurs'.format(d['label'])
                 label_count[VALID][d['label']] += 1
-                f.write('\t'.join([d['label'], d['file']]) + CLRF)
+                f.write(SPLIT_SEP.join([d['label'], d['file']]) + CLRF)
         label_count_all.append(label_count)
 
 
@@ -229,5 +233,4 @@ def run(K):
     print('data split done')
 
 if __name__ == '__main__':
-    K = 5
     run(K)
