@@ -9,6 +9,7 @@ import gc
 import os
 import re
 from scipy import signal
+from python_speech_features import mfcc, fbank, logfbank, ssc
 from data_split import K
 from data_split import TRAIN_SPLIT_FILE_TEMP, VALID_SPLIT_FILE_TEMP, SPLIT_SEP
 from data_split import wanted_words, SILENCE_LABEL, UNKNOWN_WORD_LABEL
@@ -25,7 +26,7 @@ EPS = 1e-10
 LEGAL_LABELS = wanted_words + [SILENCE_LABEL, UNKNOWN_WORD_LABEL]
 LABEL_INDEX = {label: index for index, label in enumerate(LEGAL_LABELS)}
 
-TEST_LENGTH = 1000
+TEST_LENGTH = 100
 
 ##################################################################################################
 # various background noise
@@ -44,6 +45,7 @@ BG_NOISE_DATA = {
     noise: librosa.core.load(path=''.join([BG_NOISE_PATH, noise, '.wav']), sr=SAMPLE_RATE)[0]
     for noise in wanted_bg_noise
     }
+
 
 def read_raw_wav(path):
     data = librosa.core.load(path=path, sr=SAMPLE_RATE)[0]
@@ -66,22 +68,31 @@ class FE(object):
             data, fs=SAMPLE_RATE, window='hann', nperseg=nperseg, noverlap=noverlap, detrend=False)
         return np.log(spec.T.astype(np.float32) + EPS)
 
+    @staticmethod
+    def calculates_mfcc(data):
+        return mfcc(data, samplerate=SAMPLE_RATE, winlen=0.02, winstep=0.01)
+
+    
+
+
 
 ##################################################################################################
 # Data augmentation methods
 ##################################################################################################
 class Augmentataion(object):
     @staticmethod
-    def shifts_in_time(data, roll_length):
+    def shifts_in_time(data):
+        roll_length = np.random.randint(-1200, 1200)
         return np.roll(data, roll_length)
 
     @staticmethod
-    def shifts_in_pitch(data, shift_size_ms=100):
-        n_steps = int(round(shift_size_ms * SAMPLE_RATE / 1e3))
+    def shifts_in_pitch(data):
+        n_steps = np.random.randint(-5, 5)
         return librosa.effects.pitch_shift(data, sr=SAMPLE_RATE, n_steps=n_steps)
 
     @staticmethod
-    def stretch(data, stretch_rate):
+    def stretch(data):
+        stretch_rate = np.random.uniform(0.8, 1.2)
         data = librosa.effects.time_stretch(data, stretch_rate)
         if len(data) > SAMPLE_LENGTH:  # sped up
             data = data[:SAMPLE_LENGTH]
@@ -90,7 +101,9 @@ class Augmentataion(object):
         return data
 
     @staticmethod
-    def adds_background_noise(data, noise_type, noise_weight):
+    def adds_background_noise(data):
+        noise_type = random.choice(wanted_bg_noise)
+        noise_weight = np.random.uniform(0.001, 0.03)
         offset = random.randint(0, 30) * SAMPLE_LENGTH
         data = data + noise_weight * BG_NOISE_DATA[noise_type][offset:offset + len(data)]
         return data
@@ -99,15 +112,18 @@ class Augmentataion(object):
 ##################################################################################################
 # Data augmentation pipeline
 ##################################################################################################
-def conduct_augmentation(data):
-    return data
+def conduct_augmentation(label, data):
+    for l,d in zip(label, data):
+        pass
+    return label, data
 
 
 ##################################################################################################
 # Feature extracting pipeline
 ##################################################################################################
 def conduct_fe(data):
-    data = np.array(list(map(FE.calculates_spectrogram, data)))
+    # data = np.array(list(map(FE.calculates_spectrogram, data)))
+    data = np.array(list(map(FE.calculates_mfcc, data)))
     return data
 
 
@@ -141,55 +157,92 @@ def test_clip_augment(path):
 
 
 ##################################################################################################
-# Conduct FE and Data augmentation then save processed file to local pickle file
+# Produce train data
 ##################################################################################################
-def conduct_fe_and_augmentation(root_dir, k, file_temp, train_or_valid):
-    in_fold_data = {'label':[], 'data':[]}
-    # read raw wav file
-    with open(''.join([root_dir, str(k), file_temp]), 'r') as f:
-        for index, l in enumerate(f.readlines()):
-            if index >= TEST_LENGTH:
-                break
-            label, file_path = l.strip().split(SPLIT_SEP)
-            assert label in LEGAL_LABELS, 'illegal label {0}'.format(label)
-            if label not in ['silence']:
-                data = read_raw_wav(file_path)
-            else:
-                # like test/audio/clip_00293950f.wav all silence are zeros
-                data = np.zeros(SAMPLE_LENGTH)
-            in_fold_data['label'].append(LABEL_INDEX[label])
-            in_fold_data['data'].append(data)
-    # check label and data dimension
-    label_len = len(in_fold_data['label'])
-    data_len = len(in_fold_data['data'])
-    assert label_len == data_len,  'label len {0} and data len {1} not match'.format(label_len, data_len)
-    # conduct data augment
-    in_fold_data['data'] = conduct_augmentation(in_fold_data['data'])
-    # conduct feature extracting
-    in_fold_data['data'] = conduct_fe(in_fold_data['data'])
-    pickle.dump(
-        obj=in_fold_data,
-        file=open('../data/input/processed_train/{0}_fold_'.format(k) + train_or_valid + '.pkl', 'wb'),
-        protocol=pickle.HIGHEST_PROTOCOL
-    )
-
 def produce_train_data():
+    def _conduct_fe_and_augmentation(root_dir, k, file_temp, train_or_valid):
+        in_fold_data = {'label': [], 'data': []}
+
+        # step1. read raw wav file
+        with open(''.join([root_dir, str(k), file_temp]), 'r') as f:
+            for index, l in enumerate(f.readlines()):
+                if index >= TEST_LENGTH:
+                    break
+                label, file_path = l.strip().split(SPLIT_SEP)
+                assert label in LEGAL_LABELS, 'illegal label {0}'.format(label)
+                if label not in ['silence']:
+                    data = read_raw_wav(file_path)
+                else:
+                    # like test/audio/clip_00293950f.wav all silence are zeros
+                    data = np.zeros(SAMPLE_LENGTH)
+                in_fold_data['label'].append(LABEL_INDEX[label])
+                in_fold_data['data'].append(data)
+
+        # step2. check label and data dimension
+        label_len = len(in_fold_data['label'])
+        data_len = len(in_fold_data['data'])
+        assert label_len == data_len, 'label len {0} and data len {1} not match'.format(label_len, data_len)
+
+        # step3. conduct data augment
+        in_fold_data['label'], in_fold_data['data'] = \
+            conduct_augmentation(in_fold_data['label'], in_fold_data['data'])
+
+        # step4. conduct feature extracting
+        in_fold_data['data'] = conduct_fe(in_fold_data['data'])
+        st(context=21)
+
+        # step5. write to local disk
+        pickle.dump(
+            obj=in_fold_data,
+            file=open('../data/input/processed_train/{0}_fold_'.format(k) + train_or_valid + '.pkl', 'wb'),
+            protocol=pickle.HIGHEST_PROTOCOL
+        )
+
     root_dir = '../data/input/train/audio/'
     for k in range(K):
         print('####################')
         # in-fold train
         print('fold {0} train augment begin'.format(k))
-        conduct_fe_and_augmentation(root_dir, k, TRAIN_SPLIT_FILE_TEMP, 'train')
+        _conduct_fe_and_augmentation(root_dir, k, TRAIN_SPLIT_FILE_TEMP, 'train')
         print('fold {0} train augment done'.format(k))
         gc.collect()
         # in-fold valid
         print('fold {0} valid augment begin'.format(k))
-        conduct_fe_and_augmentation(root_dir, k, VALID_SPLIT_FILE_TEMP, 'valid')
+        _conduct_fe_and_augmentation(root_dir, k, VALID_SPLIT_FILE_TEMP, 'valid')
         print('fold {0} valid augment done'.format(k))
         gc.collect()
 
+##################################################################################################
+# Produce test data
+##################################################################################################
 def produce_test_data():
-    pass
+    root_dir = '../data/input/test/audio/'
+    fname_data = {'fname': [], 'data': []}
+    print('####################')
+    print('read test audio data begin...')
+    for index, fname in enumerate(os.listdir(root_dir)):
+        if index >= TEST_LENGTH:
+            break
+        if os.path.isdir(fname):
+            continue
+        data = read_raw_wav(root_dir + fname)
+        fname_data['fname'].append(fname)
+        fname_data['data'].append(data)
+    assert len(fname_data['fname']) == len(fname_data['data']), 'test fname and data size not match'
+    print('read test audio data done')
+    print('conduct test audio data FE begin...')
+    fname_data['data'] = conduct_fe(fname_data['data'])
+    print('conduct test audio data FE done')
+    print('record test audio data begin...')
+    pickle.dump(
+        obj=fname_data,
+        file=open('../data/input/processed_test/test.pkl', 'wb'),
+        protocol=pickle.HIGHEST_PROTOCOL
+    )
+    print('record test audio data done')
+
 
 if __name__ == '__main__':
     produce_train_data()
+    gc.collect()
+    produce_test_data()

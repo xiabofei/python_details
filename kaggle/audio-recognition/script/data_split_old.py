@@ -32,11 +32,6 @@ SPLIT_SEP = '\t'
 K = 5
 
 wanted_words = 'yes,no,up,down,left,right,on,off,stop,go'.split(',')
-unknown_words = 'bed,bird,cat,dog,eight,five,four,happy,' \
-                'house,marvin,nine,one,seven,' \
-                'sheila,six,three,tree,two,wow,zero'.split(',')
-assert len(list(set(wanted_words).intersection(set(unknown_words))))==0, \
-    'same word in both wanted_words and unknown words'
 data_dir = '../data/input/train/audio'
 search_path = os.path.join(data_dir, '*', '*.wav')
 
@@ -131,73 +126,41 @@ def split_data_by_Kfold(K, silence_percentage, unknown_percentage):
     ret = []
     uid_list = []
     for k in range(K):
-        print('{0} fold'.format(k))
-        # data in fold 'k'
         wanted_data = {TRAIN: [], VALID: []}
-        # guarantee same 'unknown words' doesn't exist in both train and valid set
-        random.shuffle(unknown_words)
-        _unknown_words_train = unknown_words[:10]
-        _unknown_words_valid = unknown_words[10:]
-        unknown_data_train = []
-        unknown_data_valid = []
+        unknown_data = {TRAIN: [], VALID: []}
         uid = {TRAIN: [], VALID: []}
-        missing_unknown_counts = 0
-        train_unknown_counts = 0
-        valid_unknown_counts = 0
         for wav_path in gfile.Glob(search_path):
             _, word = os.path.split(os.path.dirname(wav_path))
             word = word.lower()
             if word == BACKGROUND_NOISE_DIR_NAME:
                 continue
-            # guarantee same 'usr' doesn't exist in both train and valid set
             set_index, usr_id = distribute_fold(wav_path=wav_path, fold=k, K=K)
             uid[set_index].append(usr_id)
             if word in wanted_words:
                 wanted_data[set_index].append({'label': word, 'file': wav_path})
             else:
-                if set_index==TRAIN and word in _unknown_words_train:
-                    train_unknown_counts += 1
-                    unknown_data_train.append({'label': UNKNOWN_WORD_LABEL, 'file': wav_path})
-                elif set_index==VALID and word in _unknown_words_valid:
-                    valid_unknown_counts += 1
-                    unknown_data_valid.append({'label': UNKNOWN_WORD_LABEL, 'file': wav_path})
-                else:
-                    missing_unknown_counts += 1
-                    pass
-
-        # print('missing unknown counts : {0}'.format(missing_unknown_counts))
-        print('valid unknown counts : {0}'.format(valid_unknown_counts))
-        print('train unknown counts : {0}'.format(train_unknown_counts))
-
+                unknown_data[set_index].append({'label': UNKNOWN_WORD_LABEL, 'file': wav_path})
         # add silence and unknown
         addition_silence_unknown_count = 0
         for set_index in [VALID, TRAIN]:
             set_size = len(wanted_data[set_index])
             # add silence data
             silence_size = int(math.ceil(set_size * silence_percentage / 100))
-            print('silence size : {0}'.format(silence_size))
             addition_silence_unknown_count += silence_size
             for _ in range(silence_size):
                 wanted_data[set_index].append({'label': SILENCE_LABEL, 'file': SILENCE_FILE})
             # add unknown data
+            random.shuffle(unknown_data[set_index])
             unknown_size = int(math.ceil(set_size * unknown_percentage / 100))
-            print('unknown size : {0}'.format(unknown_size))
             addition_silence_unknown_count += unknown_size
-            if set_index==TRAIN:
-                random.shuffle(unknown_data_train)
-                wanted_data[set_index].extend(unknown_data_train[:unknown_size])
-            else:
-                random.shuffle(unknown_data_valid)
-                wanted_data[set_index].extend(unknown_data_valid[:unknown_size])
+            wanted_data[set_index].extend(unknown_data[set_index][:unknown_size])
         print('addition silence unknown count : {0}'.format(addition_silence_unknown_count))
-
         # shuffle ordering
         for set_index in [VALID, TRAIN]:
             random.shuffle(wanted_data[set_index])
             uid[set_index] = list(set(uid[set_index]))
         ret.append(wanted_data)
         uid_list.append(uid)
-        print('')
     return ret, uid_list
 
 
@@ -264,7 +227,7 @@ def record_Kfold_result(data):
 
 # data = split_data_by_percentage(10, 10, 10, 10)
 def run(K):
-    data, uid_list = split_data_by_Kfold(K, silence_percentage=5, unknown_percentage=10)
+    data, uid_list = split_data_by_Kfold(K, silence_percentage=5, unknown_percentage=20)
     evaluate_Kfold_split_correction(uid_list, K)
     record_Kfold_result(data)
     print('data split done')
