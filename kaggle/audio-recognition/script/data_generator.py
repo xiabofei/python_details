@@ -47,8 +47,8 @@ class AudioGenerator(object):
         in_fold_data = {'label': [], 'data': []}
         with open(''.join([self.root_dir, str(self.k), self.file_temp]), 'r') as f:
             for index, l in enumerate(f.readlines()):
-                # if index>=TEST_LENGTH:
-                #     break
+                if index>=TEST_LENGTH:
+                    break
                 label, file_path = l.strip().split(SPLIT_SEP)
                 assert label in LEGAL_LABELS, 'illegal label {0}'.format(label)
                 if label not in ['silence']:
@@ -88,6 +88,7 @@ class AudioGenerator(object):
                         batch_data = list(map(Augmentataion.adds_background_noise, batch_data))
                 # transform to spectrogram
                 batch_data = np.array(list(map(FE.calculates_spectrogram, batch_data)))
+                # batch_data = np.array(list(map(FE.calculates_log_fbank, batch_data)))
                 batch_label = np.array(batch_label)
                 # reshape batch data and yield
                 yield batch_data.reshape(tuple(list(batch_data.shape) + [1])).astype('float32'), batch_label

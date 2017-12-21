@@ -22,13 +22,13 @@ import pandas as pd
 import keras
 from keras.layers import Convolution2D, Dense, Input, Flatten, Dropout, MaxPooling2D, BatchNormalization, Activation
 from keras.layers import LSTM
-from keras.layers import TimeDistributed
 from keras.layers.advanced_activations import LeakyReLU, PReLU
 from keras.models import Model
 from keras.utils import to_categorical
 from keras.optimizers import SGD
 from keras.callbacks import LearningRateScheduler
 from keras.callbacks import Callback
+from keras.applications import VGG16
 
 
 from data_generator import AudioGenerator
@@ -50,7 +50,7 @@ FLAGS = None
 n_classes = len(LEGAL_LABELS)
 RUNS_IN_FOLD = 3
 batch_size = 64
-epochs = 1
+epochs = 11
 
 
 ##################################################
@@ -72,59 +72,8 @@ gc.collect()
 # define models
 ##################################################
 def get_model():
-
-    # input layer
-    input_layer = Input(shape=(99, 161, 1), name='INPUT')
-    # input_layer = Input(shape=(99, 40, 1), name='INPUT')
-    layer = BatchNormalization()(input_layer)
-
-    # conv1
-    layer = Convolution2D(filters=8, kernel_size=(3,3), strides=(1,1), padding="same")(layer)
-    layer = Activation('relu')(layer)
-    layer = MaxPooling2D(pool_size=(2,2))(layer)
-    layer = BatchNormalization()(layer)
-
-    # conv2
-    layer = Convolution2D(filters=16, kernel_size=(3,3), strides=(1,2), padding="same")(layer)
-    layer = Activation('relu')(layer)
-    layer = MaxPooling2D(pool_size=(2,2))(layer)
-    layer = BatchNormalization()(layer)
-
-    # conv3
-    layer = Convolution2D(filters=32, kernel_size=(3,3), strides=(1,1), padding="same")(layer)
-    layer = Activation('relu')(layer)
-    layer = MaxPooling2D(pool_size=(2,2))(layer)
-    layer = BatchNormalization()(layer)
-
-    # conv4
-    layer = Convolution2D(filters=64, kernel_size=(3,3), strides=(1,1), padding="same")(layer)
-    layer = Activation('relu')(layer)
-    layer = MaxPooling2D(pool_size=(2,2))(layer)
-    layer = BatchNormalization()(layer)
-
-    layer = Flatten()(layer)
-
-    # fc1
-    layer = Dense(units=512)(layer)
-    layer = Activation('relu')(layer)
-    layer = BatchNormalization()(layer)
-    layer = Dropout(0.5)(layer)
-
-    # fc2
-    layer = Dense(units=256)(layer)
-    layer = Activation('relu')(layer)
-
-    # output layer
-    preds = Dense(units=n_classes, activation='softmax')(layer)
-
-    # run through model
-    model = Model(inputs=input_layer, outputs=preds)
-
-    # model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['acc'])
-
-    opt = SGD(lr=0.001, momentum=0.9, nesterov=True)
-    model.compile(loss='categorical_crossentropy', optimizer=opt, metrics=['acc'])
-
+    model = VGG16(include_top=True, weights=None, input_shape=(99, 161, 1), classes=n_classes)
+    model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['acc'])
     return model
 
 
@@ -133,7 +82,7 @@ def get_model():
 # callbacks
 ##################################################
 def scheduler(epoch):
-    return 0.001 if epoch<10 else 0.0001
+    return 0.001 if epoch<4 else 0.0001
 
 class SGDLearningRateTracker(Callback):
     def on_epoch_end(self, epoch, logs={}):
@@ -171,14 +120,13 @@ if __name__ == '__main__':
     for run in range(RUNS_IN_FOLD):
         print('fold {0} runs {1}'.format(FLAGS.fold, run))
         model = get_model()
-        st(context=21)
         model.fit_generator(
             generator=train_generator.generator(),
             steps_per_epoch=train_generator.steps_per_epoch,
             epochs=epochs,
             validation_data=valid_generator.generator(),
             validation_steps=valid_generator.steps_per_epoch,
-            callbacks=[lr_scheduler],
+            # callbacks=[lr_scheduler],
             shuffle=True,
         )
         gc.collect()

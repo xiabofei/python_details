@@ -69,10 +69,19 @@ class FE(object):
         return np.log(spec.T.astype(np.float32) + EPS)
 
     @staticmethod
+    def calculates_log_mel(data):
+        S = librosa.feature.melspectrogram(data, sr=SAMPLE_RATE, n_mels=64)
+        return librosa.power_to_db(S, ref=np.max)
+
+    @staticmethod
     def calculates_mfcc(data):
         return mfcc(data, samplerate=SAMPLE_RATE, winlen=0.02, winstep=0.01)
 
-    
+    @staticmethod
+    def calculates_log_fbank(data):
+        return logfbank(data, samplerate=SAMPLE_RATE, winlen=0.02, winstep=0.01, nfilt=40)
+
+
 
 
 
@@ -123,7 +132,9 @@ def conduct_augmentation(label, data):
 ##################################################################################################
 def conduct_fe(data):
     # data = np.array(list(map(FE.calculates_spectrogram, data)))
-    data = np.array(list(map(FE.calculates_mfcc, data)))
+    # data = np.array(list(map(FE.calculates_mfcc, data)))
+    # data = np.array(list(map(FE.calculates_log_fbank, data)))
+    data = np.array(list(map(FE.calculates_log_mel, data)))
     return data
 
 
@@ -166,8 +177,8 @@ def produce_train_data():
         # step1. read raw wav file
         with open(''.join([root_dir, str(k), file_temp]), 'r') as f:
             for index, l in enumerate(f.readlines()):
-                if index >= TEST_LENGTH:
-                    break
+                # if index >= TEST_LENGTH:
+                #     break
                 label, file_path = l.strip().split(SPLIT_SEP)
                 assert label in LEGAL_LABELS, 'illegal label {0}'.format(label)
                 if label not in ['silence']:
