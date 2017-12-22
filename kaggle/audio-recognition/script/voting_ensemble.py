@@ -18,8 +18,22 @@ for fname in os.listdir(submit_candidates):
     fname_list = df['fname'].values
     vote_candidates.append(list(df['label'].values))
 
+unknown_counts = 0
 
 def voting(votes):
+    # 3rd 85
+    if Counter(votes).most_common(2)[0][1] == 2 \
+            and Counter(votes).most_common(2)[1][1] == 2 \
+            and Counter(votes).most_common(2)[1][0] == 'unknown':
+        return 'unknown'
+    # 1st 85 maybe overfitting to public LB !
+    if Counter(votes).most_common(2)[0][1] == 3 \
+            and Counter(votes).most_common(2)[1][1] == 2 \
+            and Counter(votes).most_common(2)[1][0] == 'unknown':
+        return 'unknown'
+    # 2nd 85
+    if 'unknown' in votes:
+        return 'unknown'
     return Counter(votes).most_common(1)[0][0]
 
 
