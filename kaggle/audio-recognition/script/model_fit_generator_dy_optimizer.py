@@ -26,7 +26,7 @@ from keras.layers import TimeDistributed
 from keras.layers.advanced_activations import LeakyReLU, PReLU
 from keras.models import Model
 from keras.utils import to_categorical
-from keras.optimizers import SGD, Adam
+from keras.optimizers import SGD, Adam, RMSprop
 from keras.callbacks import LearningRateScheduler
 from keras.callbacks import Callback, ModelCheckpoint, EarlyStopping
 

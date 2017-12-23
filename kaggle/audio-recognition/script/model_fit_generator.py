@@ -21,14 +21,14 @@ import numpy as np
 import pandas as pd
 import keras
 from keras.layers import Convolution2D, Dense, Input, Flatten, Dropout, MaxPooling2D, BatchNormalization, Activation
-from keras.layers import LSTM
+from keras.layers import LSTM, Reshape, Permute, GRU
 from keras.layers import TimeDistributed
 from keras.layers.advanced_activations import LeakyReLU, PReLU
 from keras.models import Model
 from keras.utils import to_categorical
 from keras.optimizers import SGD
 from keras.callbacks import LearningRateScheduler
-from keras.callbacks import Callback
+from keras.callbacks import Callback, ModelCheckpoint
 
 
 from data_generator import AudioGenerator
@@ -84,39 +84,46 @@ def get_model():
     layer = BatchNormalization()(input_layer)
 
     # conv1
-    layer = Convolution2D(filters=8, kernel_size=(3,3), strides=(1,1), padding="same")(layer)
+    layer = Convolution2D(filters=16, kernel_size=(3,3), strides=(1,1), padding="same")(layer)
     layer = Activation('relu')(layer)
     layer = MaxPooling2D(pool_size=(2,2))(layer)
     layer = BatchNormalization()(layer)
 
     # conv2
     if FE_TYPE==SPEC:
-        layer = Convolution2D(filters=16, kernel_size=(3,3), strides=(1,2), padding="same")(layer)
+        layer = Convolution2D(filters=32, kernel_size=(3,3), strides=(1,2), padding="same")(layer)
     if FE_TYPE==LFBANK:
-        layer = Convolution2D(filters=16, kernel_size=(3,3), strides=(1,1), padding="same")(layer)
+        layer = Convolution2D(filters=32, kernel_size=(3,3), strides=(1,1), padding="same")(layer)
     layer = Activation('relu')(layer)
     layer = MaxPooling2D(pool_size=(2,2))(layer)
     layer = BatchNormalization()(layer)
 
     # conv3
-    layer = Convolution2D(filters=32, kernel_size=(3,3), strides=(1,1), padding="same")(layer)
-    layer = Activation('relu')(layer)
-    layer = MaxPooling2D(pool_size=(2,2))(layer)
-    layer = BatchNormalization()(layer)
-
-    # conv4
     layer = Convolution2D(filters=64, kernel_size=(3,3), strides=(1,1), padding="same")(layer)
     layer = Activation('relu')(layer)
     layer = MaxPooling2D(pool_size=(2,2))(layer)
     layer = BatchNormalization()(layer)
 
-    layer = Flatten()(layer)
+    # conv4
+    layer = Convolution2D(filters=128, kernel_size=(3,3), strides=(1,1), padding="same")(layer)
+    layer = Activation('relu')(layer)
+    layer = MaxPooling2D(pool_size=(2,2))(layer)
+    layer = BatchNormalization()(layer)
+
+    # rnn
+    if FE_TYPE==SPEC:
+        layer = Reshape((30, 64))(layer)
+    if FE_TYPE==LFBANK:
+        layer = Reshape((12, 64))(layer)
+    layer = GRU(32, return_sequences=True, name='gru1')(layer)
+    layer = GRU(32, return_sequences=False, name='gru2')(layer)
 
     # fc1
-    layer = Dense(units=512)(layer)
-    layer = Activation('relu')(layer)
-    layer = BatchNormalization()(layer)
-    layer = Dropout(0.5)(layer)
+    # layer = Flatten()(layer)
+    # layer = Dense(units=512)(layer)
+    # layer = Activation('relu')(layer)
+    # layer = BatchNormalization()(layer)
+    # layer = Dropout(0.5)(layer)
 
     # fc2
     layer = Dense(units=256)(layer)
@@ -178,18 +185,31 @@ if __name__ == '__main__':
     preds = np.zeros((len(fname_test), n_classes))
     for run in range(RUNS_IN_FOLD):
         print('fold {0} runs {1}'.format(FLAGS.fold, run))
+        # use model check point callbacks
+        bst_model_path = './tmp/nn_fold{0}_run{1}.h5'.format(FLAGS.fold, run)
+        model_checkpoint = ModelCheckpoint(
+            bst_model_path,
+            monitor='val_acc',
+            mode='max',
+            save_best_only=True,
+            save_weights_only=True
+        )
         model = get_model()
-        # st(context=21)
-        model.fit_generator(
+        st(context=21)
+        hist = model.fit_generator(
             generator=train_generator.generator(FE_TYPE),
             steps_per_epoch=train_generator.steps_per_epoch,
             epochs=epochs,
             validation_data=valid_generator.generator(FE_TYPE),
             validation_steps=valid_generator.steps_per_epoch,
-            callbacks=[lr_scheduler],
+            callbacks=[lr_scheduler, model_checkpoint,],
             shuffle=True,
         )
         gc.collect()
+        bst_acc = max(hist.history['val_acc'])
+        print('best model val_acc : {0}'.format(bst_acc))
+        model.load_weights(bst_model_path)
+        os.remove(bst_model_path)
         preds += model.predict(X_test, batch_size=256) / RUNS_IN_FOLD
         del model
         gc.collect()

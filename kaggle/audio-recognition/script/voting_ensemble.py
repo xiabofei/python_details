@@ -22,6 +22,7 @@ unknown_counts = 0
 
 def voting(votes):
     # 3rd 85
+    '''
     if Counter(votes).most_common(2)[0][1] == 2 \
             and Counter(votes).most_common(2)[1][1] == 2 \
             and Counter(votes).most_common(2)[1][0] == 'unknown':
@@ -33,6 +34,9 @@ def voting(votes):
         return 'unknown'
     # 2nd 85
     if 'unknown' in votes:
+        return 'unknown'
+    '''
+    if Counter(votes)['unknown']>=6:
         return 'unknown'
     return Counter(votes).most_common(1)[0][0]
 
