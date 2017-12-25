@@ -13,10 +13,12 @@ submit_candidates = '../data/output/submit_candidates/'
 
 vote_candidates = []
 fname_list = []
+submit_names = []
 for fname in os.listdir(submit_candidates):
     df = pd.read_csv(submit_candidates + fname, sep=',', index_col=False)
     fname_list = df['fname'].values
     vote_candidates.append(list(df['label'].values))
+    submit_names.append(fname)
 
 unknown_counts = 0
 
@@ -36,13 +38,16 @@ def voting(votes):
     if 'unknown' in votes:
         return 'unknown'
     '''
-    if Counter(votes)['unknown']>=6:
+    if Counter(votes)['unknown']>=3:
         return 'unknown'
     return Counter(votes).most_common(1)[0][0]
 
 
 vote_candidates = np.array(vote_candidates).T
 
+# tmp_df = pd.DataFrame(columns=submit_names, data=vote_candidates, index=None)
+#
+# st(context=21)
 
 voted_label = list(map(voting, vote_candidates))
 

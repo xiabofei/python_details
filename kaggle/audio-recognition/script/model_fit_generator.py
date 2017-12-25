@@ -22,13 +22,15 @@ import pandas as pd
 import keras
 from keras.layers import Convolution2D, Dense, Input, Flatten, Dropout, MaxPooling2D, BatchNormalization, Activation
 from keras.layers import LSTM, Reshape, Permute, GRU
-from keras.layers import TimeDistributed
+from keras.layers import TimeDistributed, Bidirectional
 from keras.layers.advanced_activations import LeakyReLU, PReLU
 from keras.models import Model
 from keras.utils import to_categorical
 from keras.optimizers import SGD
 from keras.callbacks import LearningRateScheduler
-from keras.callbacks import Callback, ModelCheckpoint
+from keras.callbacks import Callback, ModelCheckpoint, ReduceLROnPlateau
+from keras.applications import resnet50
+
 
 
 from data_generator import AudioGenerator
@@ -51,14 +53,14 @@ FLAGS = None
 n_classes = len(LEGAL_LABELS)
 RUNS_IN_FOLD = 3
 batch_size = 64
-epochs = 1
+epochs = 50
 
 
 ##################################################
 # train and valid data generator
 ##################################################
 
-FE_TYPE = LFBANK
+FE_TYPE = SPEC
 
 ##################################################
 # load test data
@@ -99,24 +101,26 @@ def get_model():
     layer = BatchNormalization()(layer)
 
     # conv3
-    layer = Convolution2D(filters=64, kernel_size=(3,3), strides=(1,1), padding="same")(layer)
+    layer = Convolution2D(filters=64, kernel_size=(3,3), strides=(1,2), padding="same")(layer)
     layer = Activation('relu')(layer)
     layer = MaxPooling2D(pool_size=(2,2))(layer)
     layer = BatchNormalization()(layer)
 
     # conv4
-    layer = Convolution2D(filters=128, kernel_size=(3,3), strides=(1,1), padding="same")(layer)
+    if FE_TYPE==SPEC:
+        layer = Convolution2D(filters=128, kernel_size=(3,3), strides=(1,2), padding="same")(layer)
+    if FE_TYPE==LFBANK:
+        layer = Convolution2D(filters=128, kernel_size=(3,3), strides=(1,1), padding="same")(layer)
     layer = Activation('relu')(layer)
-    layer = MaxPooling2D(pool_size=(2,2))(layer)
+    layer = MaxPooling2D(pool_size=(1,2))(layer)
     layer = BatchNormalization()(layer)
 
+
+    layer = Reshape((12,128))(layer)
+
     # rnn
-    if FE_TYPE==SPEC:
-        layer = Reshape((30, 64))(layer)
-    if FE_TYPE==LFBANK:
-        layer = Reshape((12, 64))(layer)
-    layer = GRU(32, return_sequences=True, name='gru1')(layer)
-    layer = GRU(32, return_sequences=False, name='gru2')(layer)
+    layer = Bidirectional(LSTM(units=48, return_sequences=False))(layer)
+    layer = Dropout(0.5)(layer)
 
     # fc1
     # layer = Flatten()(layer)
@@ -126,8 +130,8 @@ def get_model():
     # layer = Dropout(0.5)(layer)
 
     # fc2
-    layer = Dense(units=256)(layer)
-    layer = Activation('relu')(layer)
+    # layer = Dense(units=256)(layer)
+    # layer = Activation('relu')(layer)
 
     # output layer
     preds = Dense(units=n_classes, activation='softmax')(layer)
@@ -135,10 +139,10 @@ def get_model():
     # run through model
     model = Model(inputs=input_layer, outputs=preds)
 
-    model.compile(loss='categorical_hinge', optimizer='rmsprop', metrics=['acc'])
+    # model.compile(loss='categorical_hinge', optimizer='adam', metrics=['acc'])
 
-    # opt = SGD(lr=0.001, momentum=0.9, nesterov=True)
-    # model.compile(loss='categorical_hinge', optimizer=opt, metrics=['acc'])
+    opt = SGD(lr=0.01, momentum=0.9, nesterov=True)
+    model.compile(loss='categorical_hinge', optimizer=opt, metrics=['acc'])
 
     return model
 
@@ -148,7 +152,18 @@ def get_model():
 # callbacks
 ##################################################
 def scheduler(epoch):
-    return 0.001 if epoch<12 else 0.0001
+    lr = 0.01
+    if epoch<=10:
+        lr = 0.01
+    elif epoch>10 and epoch<20:
+        lr = 0.003
+    elif epoch>20 and epoch<30:
+        lr = 0.001
+    elif epoch>30 and epoch<40:
+        lr = 0.0003
+    else:
+        lr = 0.0001
+    return lr
 
 class SGDLearningRateTracker(Callback):
     def on_epoch_end(self, epoch, logs={}):
@@ -158,7 +173,7 @@ class SGDLearningRateTracker(Callback):
 
 lr_scheduler = LearningRateScheduler(scheduler)
 lr_tracker = SGDLearningRateTracker()
-
+lr_plateau = ReduceLROnPlateau(monitor='val_acc', mode='max', patience=3, factor=0.3, verbose=1)
 
 
 if __name__ == '__main__':
@@ -174,7 +189,7 @@ if __name__ == '__main__':
         train_or_valid='train',
         augmentation_prob=50,
     )
-    train_generator.steps_per_epoch = train_generator.steps_per_epoch * 2
+    # train_generator.steps_per_epoch = train_generator.steps_per_epoch * 2
     valid_generator = AudioGenerator(
         root_dir= '../data/input/train/audio/',
         k=FLAGS.fold,
@@ -195,14 +210,14 @@ if __name__ == '__main__':
             save_weights_only=True
         )
         model = get_model()
-        st(context=21)
+        # st(context=21)
         hist = model.fit_generator(
             generator=train_generator.generator(FE_TYPE),
             steps_per_epoch=train_generator.steps_per_epoch,
             epochs=epochs,
             validation_data=valid_generator.generator(FE_TYPE),
             validation_steps=valid_generator.steps_per_epoch,
-            callbacks=[lr_scheduler, model_checkpoint,],
+            callbacks=[lr_plateau, model_checkpoint],
             shuffle=True,
         )
         gc.collect()

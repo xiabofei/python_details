@@ -105,28 +105,31 @@ def conduct_fe(data, fe_type):
 class Augmentataion(object):
     @staticmethod
     def shifts_in_time(data):
-        roll_length = np.random.randint(-1200, 1200)
+        roll_length = np.random.randint(-3200, 3200)
         return np.roll(data, roll_length)
 
     @staticmethod
     def shifts_in_pitch(data):
         n_steps = np.random.randint(-5, 5)
-        return librosa.effects.pitch_shift(data, sr=SAMPLE_RATE, n_steps=n_steps)
+        data = librosa.effects.pitch_shift(data, sr=SAMPLE_RATE, n_steps=n_steps)
+        return data
 
     @staticmethod
     def stretch(data):
-        stretch_rate = np.random.uniform(0.8, 1.2)
+        stretch_rate = np.random.uniform(0.7, 0.9)
         data = librosa.effects.time_stretch(data, stretch_rate)
-        if len(data) > SAMPLE_LENGTH:  # sped up
+        # speed up
+        if len(data) > SAMPLE_LENGTH:
             data = data[:SAMPLE_LENGTH]
-        else:  # slow down
+        # slow down
+        else:
             data = np.pad(data, (0, max(0, SAMPLE_LENGTH - len(data))), 'constant')
         return data
 
     @staticmethod
     def adds_background_noise(data):
         noise_type = random.choice(wanted_bg_noise)
-        noise_weight = np.random.uniform(0.001, 0.03)
+        noise_weight = np.random.uniform(0.001, 0.05)
         offset = random.randint(0, 30) * SAMPLE_LENGTH
         data = data + noise_weight * BG_NOISE_DATA[noise_type][offset:offset + len(data)]
         return data

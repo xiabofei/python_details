@@ -14,7 +14,7 @@ n_classes = len(LEGAL_LABELS)
 SAMPLE_RATE = 16000
 SAMPLE_LENGTH = 16000
 
-TEST_LENGTH = 500
+TEST_LENGTH = 100
 
 from ipdb import set_trace as st
 
@@ -52,6 +52,11 @@ class AudioGenerator(object):
                     data = np.zeros(SAMPLE_LENGTH)
                 in_fold_data['label'].append(LABEL_INDEX[label])
                 in_fold_data['data'].append(data)
+        ## do offline augmentation (librosa too slow)
+        ## double train data with a copy with augmentation
+        # if self.train_or_valid=='train':
+        #     in_fold_data['data'].extend(list(map(Augmentataion.stretch, in_fold_data['data'])))
+        #     in_fold_data['label'].extend(in_fold_data['label'])
         label_len = len(in_fold_data['label'])
         data_len = len(in_fold_data['data'])
         assert label_len == data_len, 'label len {0} and data len {1} not match'.format(label_len, data_len)
@@ -75,10 +80,6 @@ class AudioGenerator(object):
                 if self.train_or_valid == 'train':
                     if np.random.randint(100) < self.augmentation_prob:
                         batch_data = list(map(Augmentataion.shifts_in_time, batch_data))
-                    # if np.random.randint(100) < self.augmentation_prob:
-                    #     batch_data = list(map(Augmentataion.shifts_in_pitch, batch_data))
-                    # if np.random.randint(100) < self.augmentation_prob:
-                    #     batch_data = list(map(Augmentataion.stretch, batch_data))
                     if np.random.randint(100) < self.augmentation_prob:
                         batch_data = list(map(Augmentataion.adds_background_noise, batch_data))
                 # transform to spectrogram
