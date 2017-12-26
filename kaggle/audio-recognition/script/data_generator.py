@@ -16,6 +16,8 @@ SAMPLE_LENGTH = 16000
 
 TEST_LENGTH = 100
 
+EPS=1e-8
+
 from ipdb import set_trace as st
 
 
@@ -84,6 +86,7 @@ class AudioGenerator(object):
                         batch_data = list(map(Augmentataion.adds_background_noise, batch_data))
                 # transform to spectrogram
                 batch_data = conduct_fe(batch_data, fe_type=fe_type)
+                st(context=21)
                 batch_label = np.array(batch_label)
                 # reshape batch data and yield
                 yield batch_data.reshape(tuple(list(batch_data.shape) + [1])).astype('float32'), batch_label

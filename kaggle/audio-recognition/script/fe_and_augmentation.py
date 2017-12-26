@@ -71,7 +71,10 @@ class FE(object):
         noverlap = int(round(WINDOW_STRIDE_MS * SAMPLE_RATE / 1e3))
         freqs, times, spec = signal.spectrogram(
             data, fs=SAMPLE_RATE, window='hann', nperseg=nperseg, noverlap=noverlap, detrend=False)
-        return np.log(spec.T.astype(np.float32) + EPS)
+        spec = np.log(spec.T.astype(np.float32) + EPS)
+        spec = (spec - np.min(spec)) / (np.max(spec) - np.min(spec) + EPS)
+        spec = (spec - 0.5) * 2
+        return spec
 
     @staticmethod
     def calculates_log_mel(data):

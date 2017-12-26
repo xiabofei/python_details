@@ -51,9 +51,9 @@ test_dir = '../data/input/processed_test/'
 ##################################################
 FLAGS = None
 n_classes = len(LEGAL_LABELS)
-RUNS_IN_FOLD = 3
-batch_size = 64
-epochs = 50
+RUNS_IN_FOLD = 9
+batch_size = 96
+epochs = 40
 
 
 ##################################################
@@ -139,10 +139,10 @@ def get_model():
     # run through model
     model = Model(inputs=input_layer, outputs=preds)
 
-    # model.compile(loss='categorical_hinge', optimizer='adam', metrics=['acc'])
+    model.compile(loss='categorical_hinge', optimizer='adam', metrics=['acc'])
 
-    opt = SGD(lr=0.01, momentum=0.9, nesterov=True)
-    model.compile(loss='categorical_hinge', optimizer=opt, metrics=['acc'])
+    # opt = SGD(lr=0.01, momentum=0.9, nesterov=True)
+    # model.compile(loss='categorical_hinge', optimizer=opt, metrics=['acc'])
 
     return model
 
@@ -173,7 +173,9 @@ class SGDLearningRateTracker(Callback):
 
 lr_scheduler = LearningRateScheduler(scheduler)
 lr_tracker = SGDLearningRateTracker()
-lr_plateau = ReduceLROnPlateau(monitor='val_acc', mode='max', patience=3, factor=0.3, verbose=1)
+lr_plateau = ReduceLROnPlateau(
+    monitor='val_acc', mode='max', patience=5, factor=np.sqrt(0.1),
+    verbose=1, min_lr=1e-5)
 
 
 if __name__ == '__main__':
@@ -187,7 +189,7 @@ if __name__ == '__main__':
         file_temp=TRAIN_SPLIT_FILE_TEMP,
         ori_batch_size=batch_size,
         train_or_valid='train',
-        augmentation_prob=50,
+        augmentation_prob=30,
     )
     # train_generator.steps_per_epoch = train_generator.steps_per_epoch * 2
     valid_generator = AudioGenerator(
@@ -201,7 +203,7 @@ if __name__ == '__main__':
     for run in range(RUNS_IN_FOLD):
         print('fold {0} runs {1}'.format(FLAGS.fold, run))
         # use model check point callbacks
-        bst_model_path = './tmp/nn_fold{0}_run{1}.h5'.format(FLAGS.fold, run)
+        bst_model_path = './tmp/nn_fold{0}_run{1}_{2}.h5'.format(FLAGS.fold, run, FE_TYPE)
         model_checkpoint = ModelCheckpoint(
             bst_model_path,
             monitor='val_acc',
@@ -224,7 +226,7 @@ if __name__ == '__main__':
         bst_acc = max(hist.history['val_acc'])
         print('best model val_acc : {0}'.format(bst_acc))
         model.load_weights(bst_model_path)
-        os.remove(bst_model_path)
+        # os.remove(bst_model_path)
         preds += model.predict(X_test, batch_size=256) / RUNS_IN_FOLD
         del model
         gc.collect()
