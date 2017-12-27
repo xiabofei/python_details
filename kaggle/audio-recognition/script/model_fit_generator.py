@@ -51,9 +51,9 @@ test_dir = '../data/input/processed_test/'
 ##################################################
 FLAGS = None
 n_classes = len(LEGAL_LABELS)
-RUNS_IN_FOLD = 9
+RUNS_IN_FOLD = 7
 batch_size = 96
-epochs = 40
+epochs = 55
 
 
 ##################################################
@@ -118,8 +118,14 @@ def get_model():
 
     layer = Reshape((12,128))(layer)
 
-    # rnn
+    # bi direction lstm
+    layer = Bidirectional(LSTM(units=48, return_sequences=True))(layer)
     layer = Bidirectional(LSTM(units=48, return_sequences=False))(layer)
+
+    # bi direction gru
+    layer = Bidirectional(GRU(units=48, return_sequences=True))(layer)
+    layer = Bidirectional(GRU(units=48, return_sequences=False))(layer)
+
     layer = Dropout(0.5)(layer)
 
     # fc1
@@ -139,7 +145,7 @@ def get_model():
     # run through model
     model = Model(inputs=input_layer, outputs=preds)
 
-    model.compile(loss='categorical_hinge', optimizer='adam', metrics=['acc'])
+    model.compile(loss='categorical_hinge', optimizer='rmsprop', metrics=['acc'])
 
     # opt = SGD(lr=0.01, momentum=0.9, nesterov=True)
     # model.compile(loss='categorical_hinge', optimizer=opt, metrics=['acc'])
@@ -174,8 +180,8 @@ class SGDLearningRateTracker(Callback):
 lr_scheduler = LearningRateScheduler(scheduler)
 lr_tracker = SGDLearningRateTracker()
 lr_plateau = ReduceLROnPlateau(
-    monitor='val_acc', mode='max', patience=5, factor=np.sqrt(0.1),
-    verbose=1, min_lr=1e-5)
+    monitor='val_acc', mode='max', patience=4, factor=np.sqrt(0.1),
+    verbose=1, min_lr=1e-6)
 
 
 if __name__ == '__main__':
