@@ -38,7 +38,7 @@ def voting(votes):
     if 'unknown' in votes:
         return 'unknown'
     '''
-    if Counter(votes)['unknown']>=4:
+    if Counter(votes)['unknown']>=2:
         return 'unknown'
     return Counter(votes).most_common(1)[0][0]
 

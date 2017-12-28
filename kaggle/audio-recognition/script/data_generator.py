@@ -14,7 +14,7 @@ n_classes = len(LEGAL_LABELS)
 SAMPLE_RATE = 16000
 SAMPLE_LENGTH = 16000
 
-TEST_LENGTH = 100
+TEST_LENGTH = 500
 
 EPS=1e-8
 
@@ -41,7 +41,7 @@ class AudioGenerator(object):
 
     def conduct_fe_and_augmentation(self):
         # read original data in once
-        in_fold_data = {'label': [], 'data': []}
+        in_fold_data = {'label': [], 'data': [], 'fname':[], 'truth':[]}
         with open(''.join([self.root_dir, str(self.k), self.file_temp]), 'r') as f:
             for index, l in enumerate(f.readlines()):
                 if index>=TEST_LENGTH:
@@ -53,7 +53,9 @@ class AudioGenerator(object):
                 else:
                     data = np.zeros(SAMPLE_LENGTH)
                 in_fold_data['label'].append(LABEL_INDEX[label])
+                in_fold_data['truth'].append(label)
                 in_fold_data['data'].append(data)
+                in_fold_data['fname'].append(file_path)
         ## do offline augmentation (librosa too slow)
         ## double train data with a copy with augmentation
         # if self.train_or_valid=='train':
@@ -86,7 +88,6 @@ class AudioGenerator(object):
                         batch_data = list(map(Augmentataion.adds_background_noise, batch_data))
                 # transform to spectrogram
                 batch_data = conduct_fe(batch_data, fe_type=fe_type)
-                st(context=21)
                 batch_label = np.array(batch_label)
                 # reshape batch data and yield
                 yield batch_data.reshape(tuple(list(batch_data.shape) + [1])).astype('float32'), batch_label
