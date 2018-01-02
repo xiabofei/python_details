@@ -37,6 +37,15 @@ EXERCISE_BIKE = 'exercise_bike'
 DUDE_MIAOWING = 'dude_miaowing'
 DOING_THE_DISHES = 'doing_the_dishes'
 
+STRETCH_SLOW = 'stretch_slow'
+STRETCH_FAST = 'stretch_fast'
+
+PITCH_UP = 'pitch_up'
+PITCH_DOWN = 'pitch_down'
+
+SHIFT_TIME_FORWARD = 'shift_time_forward'
+SHIFT_TIME_BACKWARD = 'shift_time_backward'
+
 wanted_bg_noise = [WHITE_NOISE, RUNNING_TAP, PINK_NOISE, EXERCISE_BIKE, DUDE_MIAOWING, DOING_THE_DISHES]
 BG_NOISE_DATA = {
     noise: librosa.core.load(path=''.join([BG_NOISE_PATH, noise, '.wav']), sr=SAMPLE_RATE)[0]
@@ -63,6 +72,7 @@ SPEC = 'spectrogram'
 MFCC = 'mfcc'
 LFBANK = 'log_fbank'
 LMEL = 'log_mel'
+
 
 class FE(object):
     @staticmethod
@@ -103,7 +113,7 @@ def conduct_fe(data, fe_type):
 
 
 ##################################################################################################
-# Data augmentation methods
+# Data augmentation online
 ##################################################################################################
 class Augmentataion(object):
     @staticmethod
@@ -136,3 +146,105 @@ class Augmentataion(object):
         offset = random.randint(0, 30) * SAMPLE_LENGTH
         data = data + noise_weight * BG_NOISE_DATA[noise_type][offset:offset + len(data)]
         return data
+
+
+##################################################################################################
+# Data augmentation offline
+##################################################################################################
+class AugmentationOffline(object):
+    #################################################
+    # Add background noise
+    #################################################
+    @classmethod
+    def _adds_noise(cls, data, noise_type, noise_weight, offset):
+        data = data + noise_weight * BG_NOISE_DATA[noise_type][offset:offset + SAMPLE_LENGTH]
+        return data
+
+    @classmethod
+    def adds_running_tap_noise(cls, data):
+        return cls._adds_noise(data, RUNNING_TAP, 0.2, SAMPLE_LENGTH)
+
+    @classmethod
+    def adds_exercise_bike_noise(cls, data):
+        return cls._adds_noise(data, EXERCISE_BIKE, 0.5, 20 * SAMPLE_LENGTH)
+
+    @classmethod
+    def adds_white_noise(cls, data):
+        return cls._adds_noise(data, WHITE_NOISE, 0.03, 10 * SAMPLE_LENGTH)
+
+    @classmethod
+    def adds_pink_noise(cls, data):
+        return cls._adds_noise(data, PINK_NOISE, 0.05, 10 * SAMPLE_LENGTH)
+
+    @classmethod
+    def adds_dude_miaowing_noise(cls, data):
+        return cls._adds_noise(data, DUDE_MIAOWING, 1, int(2.5 * SAMPLE_LENGTH))
+
+    #################################################
+    # Stretch
+    #################################################
+    @classmethod
+    def _stretch(cls, data, stretch_rate):
+        data = librosa.effects.time_stretch(data, stretch_rate)
+        if len(data) > SAMPLE_LENGTH:
+            data = data[:SAMPLE_LENGTH]
+        else:
+            data = np.pad(data, (0, max(0, SAMPLE_LENGTH - len(data))), 'constant')
+        return data
+
+    @classmethod
+    def stretch_slow(cls, data):
+        return cls._stretch(data, 0.85)
+
+    @classmethod
+    def stretch_fast(cls, data):
+        return cls._stretch(data, 1.3)
+
+    #################################################
+    # Pitch
+    #################################################
+    @classmethod
+    def _pitch(cls, data, n_steps):
+        data = librosa.effects.pitch_shift(data, sr=SAMPLE_RATE, n_steps=n_steps)
+        return data
+
+    @classmethod
+    def pitch_up(cls, data):
+        return cls._pitch(data, 3)
+
+    @classmethod
+    def pitch_down(cls, data):
+        return cls._pitch(data, -3)
+
+    #################################################
+    # Shift time
+    #################################################
+    @classmethod
+    def _time(cls, data, roll_length):
+        return np.roll(data, roll_length)
+
+    @classmethod
+    def shift_time_forward(cls, data):
+        return cls._time(data, 2000)
+
+    @classmethod
+    def shift_time_backward(cls, data):
+        return cls._time(data, -2000)
+
+
+def conduct_augmentation_offline(data):
+    augmentation_list = [
+        (AugmentationOffline.adds_white_noise, WHITE_NOISE),
+        (AugmentationOffline.adds_pink_noise, PINK_NOISE),
+        (AugmentationOffline.adds_exercise_bike_noise, EXERCISE_BIKE),
+        (AugmentationOffline.adds_running_tap_noise, RUNNING_TAP),
+        (AugmentationOffline.adds_dude_miaowing_noise, DUDE_MIAOWING),
+        (AugmentationOffline.stretch_slow, STRETCH_SLOW),
+        (AugmentationOffline.stretch_fast, STRETCH_FAST),
+        (AugmentationOffline.pitch_up, PITCH_UP),
+        (AugmentationOffline.pitch_down, PITCH_DOWN),
+        (AugmentationOffline.shift_time_forward, SHIFT_TIME_FORWARD),
+        (AugmentationOffline.shift_time_backward, SHIFT_TIME_BACKWARD),
+    ]
+    for aug in augmentation_list:
+        yield list(map(aug[0], data)), aug[1]

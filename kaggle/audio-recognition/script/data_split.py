@@ -12,35 +12,52 @@ from tensorflow.python.util import compat
 
 from ipdb import set_trace as st
 
+
+################################################################
+# Train data dir
+################################################################
+data_dir = '../data/input/train/audio'
+search_path = os.path.join(data_dir, '*', '*.wav')
+
+
+################################################################
+# Global macro variables
+################################################################
+
 BACKGROUND_NOISE_DIR_NAME = '_background_noise_'
 MAX_NUM_WAVS_PER_CLASS = 2 ** 27 - 1  # ~134M
+
 SILENCE_LABEL = 'silence'
 SILENCE_INDEX = 0
 SILENCE_FILE = 'silence_file'
+
 UNKNOWN_WORD_LABEL = 'unknown'
 UNKNOWN_WORD_INDEX = 1
 RANDOM_SEED = 2017
 
 CLRF = '\n'
+SPLIT_SEP = '\t'
 
 TRAIN = 'train'
 VALID = 'valid'
 TEST = 'test'
 TRAIN_SPLIT_FILE_TEMP = '_fold_train.dat'
 VALID_SPLIT_FILE_TEMP = '_fold_valid.dat'
-SPLIT_SEP = '\t'
+
+# K fold
 K = 5
 
+# 10 wanted words and others unknown words
 wanted_words = 'yes,no,up,down,left,right,on,off,stop,go'.split(',')
 unknown_words = 'bed,bird,cat,dog,eight,five,four,happy,' \
                 'house,marvin,nine,one,seven,' \
                 'sheila,six,three,tree,two,wow,zero'.split(',')
 assert len(list(set(wanted_words).intersection(set(unknown_words))))==0, \
-    'same word in both wanted_words and unknown words'
-data_dir = '../data/input/train/audio'
-search_path = os.path.join(data_dir, '*', '*.wav')
+    'same word among wanted_words and unknown words'
 
-
+################################################################
+# Split K folds
+################################################################
 def _trans_wav_path_to_percentage_hash(wav_path):
     base_name = os.path.basename(wav_path)
     usr_id = re.sub(r'_nohash_.*$', '', base_name)
@@ -48,77 +65,16 @@ def _trans_wav_path_to_percentage_hash(wav_path):
     percentage_hash = ((int(hash_name_hashed, 16) % (MAX_NUM_WAVS_PER_CLASS + 1)) * (100.0 / MAX_NUM_WAVS_PER_CLASS))
     return percentage_hash, usr_id
 
-
-##################################################################################################
-# split by validation percentage and testing percentage
-##################################################################################################
-
-def which_set(wav_path, validation_percentage, testing_percentage):
-    """distribute wav file to train / valid / test by preset percentage
-    """
-    percentage_hash, usr_id = _trans_wav_path_to_percentage_hash(wav_path)
-    if percentage_hash < validation_percentage:
-        result = VALID
-    elif percentage_hash < (testing_percentage + validation_percentage):
-        result = TEST
-    else:
-        result = TRAIN
-    return result, usr_id
-
-def split_data_by_percentage(valid_percentage, test_percentage, silence_percentage, unknown_percentage):
-    """
-    The following split guarantee :
-        audios contributed by same contributor will only occurs in
-        one of train / valid / test
-        therefore no data leak
-    """
-    random.seed(RANDOM_SEED)
-    wanted_data = {TRAIN: [], VALID: [], TEST: []}
-    unknown_data = {TRAIN: [], VALID: [], TEST: []}
-    # split train/valid/test
-    for wav_path in gfile.Glob(search_path):
-        _, word = os.path.split(os.path.dirname(wav_path))
-        word = word.lower()
-        if word == BACKGROUND_NOISE_DIR_NAME:
-            continue
-        set_index, usr_id = which_set(
-            wav_path=wav_path,
-            validation_percentage=valid_percentage,
-            testing_percentage=test_percentage
-        )
-        if word in wanted_words:
-            wanted_data[set_index].append({'label': word, 'file': wav_path})
-        else:
-            unknown_data[set_index].append({'label': UNKNOWN_WORD_LABEL, 'file': wav_path})
-    # add silence and unknown
-    for set_index in [VALID, TEST, TRAIN]:
-        set_size = len(wanted_data[set_index])
-        # add silence data
-        silence_size = int(math.ceil(set_size * silence_percentage / 100))
-        for _ in range(silence_size):
-            wanted_data[set_index].append({'label': SILENCE_LABEL, 'file': SILENCE_FILE})
-        # add unknown data
-        random.shuffle(unknown_data[set_index])
-        unknown_size = int(math.ceil(set_size * unknown_percentage / 100))
-        wanted_data[set_index].extend(unknown_data[set_index][:unknown_size])
-    # shuffle ordering
-    for set_index in [VALID, TEST, TRAIN]:
-        random.shuffle(wanted_data[set_index])
-    return wanted_data
-
-
-##################################################################################################
-# split K folds
-##################################################################################################
-
 def distribute_fold(wav_path, fold, K):
     """distribute wav file to train or valid in a certain fold
     """
     assert fold >= 0 and fold < K, "invalid fold {0}".format(fold)
+    # transform from wav file name to percentage hash (as tf audio recognition tutorial does)
     percentage_hash, usr_id = _trans_wav_path_to_percentage_hash(wav_path)
-    # make cross-valid split here
+    # decide valid percentage range
     valid_percentage_min = (fold / K) * 100
     valid_percentage_max = ((fold + 1) / K) * 100
+    # decide train or valid
     if percentage_hash >= valid_percentage_min and percentage_hash < valid_percentage_max:
         result = VALID
     else:
@@ -126,15 +82,15 @@ def distribute_fold(wav_path, fold, K):
     return result, usr_id
 
 def split_data_by_Kfold(K, silence_percentage, unknown_percentage):
-    # split train/valid/test
     random.seed(RANDOM_SEED)
     ret = []
     uid_list = []
     for k in range(K):
         print('{0} fold'.format(k))
-        # data in fold 'k'
         wanted_data = {TRAIN: [], VALID: []}
-        # guarantee same 'unknown words' doesn't exist in both train and valid set
+
+        ## Step1
+        ## ----Guarantee same 'unknown words' doesn't exist in both train and valid set
         random.shuffle(unknown_words)
         _unknown_words_train = unknown_words[:10]
         _unknown_words_valid = unknown_words[10:]
@@ -144,12 +100,14 @@ def split_data_by_Kfold(K, silence_percentage, unknown_percentage):
         missing_unknown_counts = 0
         train_unknown_counts = 0
         valid_unknown_counts = 0
+
+        ## Step2
+        ## ----Split 10 known words and other unknown words
         for wav_path in gfile.Glob(search_path):
             _, word = os.path.split(os.path.dirname(wav_path))
             word = word.lower()
             if word == BACKGROUND_NOISE_DIR_NAME:
                 continue
-            # guarantee same 'usr' doesn't exist in both train and valid set
             set_index, usr_id = distribute_fold(wav_path=wav_path, fold=k, K=K)
             uid[set_index].append(usr_id)
             if word in wanted_words:
@@ -164,12 +122,11 @@ def split_data_by_Kfold(K, silence_percentage, unknown_percentage):
                 else:
                     missing_unknown_counts += 1
                     pass
-
-        # print('missing unknown counts : {0}'.format(missing_unknown_counts))
         print('valid unknown counts : {0}'.format(valid_unknown_counts))
         print('train unknown counts : {0}'.format(train_unknown_counts))
 
-        # add silence and unknown
+        ## Step3
+        ## ----Add 'silence' and 'unknown' according to preset 'silence_percentage' and 'unknown_percentage'
         addition_silence_unknown_count = 0
         for set_index in [VALID, TRAIN]:
             set_size = len(wanted_data[set_index])
@@ -191,7 +148,8 @@ def split_data_by_Kfold(K, silence_percentage, unknown_percentage):
                 wanted_data[set_index].extend(unknown_data_valid[:unknown_size])
         print('addition silence unknown count : {0}'.format(addition_silence_unknown_count))
 
-        # shuffle ordering
+        ## Step4
+        ## ----Shuffle ordering
         for set_index in [VALID, TRAIN]:
             random.shuffle(wanted_data[set_index])
             uid[set_index] = list(set(uid[set_index]))
@@ -201,10 +159,9 @@ def split_data_by_Kfold(K, silence_percentage, unknown_percentage):
     return ret, uid_list
 
 
-##################################################################################################
-# evaluate Kfold split data leak
-##################################################################################################
-
+################################################################
+# Evaluate k fold split correctness
+################################################################
 def evaluate_Kfold_split_correction(uid_list, K):
     # uid count
     uid_in_Kfold = []
@@ -234,10 +191,9 @@ def evaluate_Kfold_split_correction(uid_list, K):
         last_uid_valid = current_uid_valid
         last_uid_train = current_uid_train
 
-##################################################################################################
+################################################################
 # record Kfold split result in local file
-##################################################################################################
-
+################################################################
 def record_Kfold_result(data):
     labels_all = wanted_words + [SILENCE_LABEL, UNKNOWN_WORD_LABEL]
     label_count_all = []
@@ -260,14 +216,24 @@ def record_Kfold_result(data):
         label_count_all.append(label_count)
 
 
-
-
-# data = split_data_by_percentage(10, 10, 10, 10)
 def run(K):
+    ## step1
+    ## ----split data by k folds and preset each fold's silence percentage / unknown percentage
+    ## ----since silence data is relative easy to predict so reduce the percentage to 5
+    ## ----unknown percentage is preset as 10, since public lb's unknown is 10%
     data, uid_list = split_data_by_Kfold(K, silence_percentage=5, unknown_percentage=10)
+    ## step2
+    ## ----guarantee same audio contributor not in train or valid same fold
+    ## ----guarantee same 'unknown' words not in train or valid same fold
     evaluate_Kfold_split_correction(uid_list, K)
+    ## step3
+    ## ----produce 10 (5×2) files in 'data_dir' (preset in very beginning)
+    ## ----<0_fold_train.dat, 0_fold_valid.dat>,...,<4_fold_train.dat, 4_fold_valid.dat>
+    ## ----each file contain two columns, as follows:
+    ## --------'on	../data/input/train/audio/on/9f869f70_nohash_1.wav'
+    ## ----column1 as label, column2 as its wav file path
     record_Kfold_result(data)
-    print('data split done')
+    print('Data split done')
 
 if __name__ == '__main__':
     run(K)
