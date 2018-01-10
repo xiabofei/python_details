@@ -13,6 +13,9 @@ from python_speech_features import mfcc, fbank, logfbank, ssc
 from data_split import K
 from data_split import TRAIN_SPLIT_FILE_TEMP, VALID_SPLIT_FILE_TEMP, SPLIT_SEP
 from data_split import wanted_words, SILENCE_LABEL, UNKNOWN_WORD_LABEL
+from keras.preprocessing import image
+from time import time
+from multiprocessing.dummy import Pool
 
 from ipdb import set_trace as st
 
@@ -34,19 +37,13 @@ WHITE_NOISE = 'white_noise'
 RUNNING_TAP = 'running_tap'
 PINK_NOISE = 'pink_noise'
 EXERCISE_BIKE = 'exercise_bike'
-DUDE_MIAOWING = 'dude_miaowing'
-DOING_THE_DISHES = 'doing_the_dishes'
 
-STRETCH_SLOW = 'stretch_slow'
-STRETCH_FAST = 'stretch_fast'
+NOISE = 'noise'
+STRETCH = 'stretch'
+PITCH = 'pitch'
+SHIFT_TIME = 'shift_time'
 
-PITCH_UP = 'pitch_up'
-PITCH_DOWN = 'pitch_down'
-
-SHIFT_TIME_FORWARD = 'shift_time_forward'
-SHIFT_TIME_BACKWARD = 'shift_time_backward'
-
-wanted_bg_noise = [WHITE_NOISE, RUNNING_TAP, PINK_NOISE, EXERCISE_BIKE, DUDE_MIAOWING, DOING_THE_DISHES]
+wanted_bg_noise = [WHITE_NOISE, RUNNING_TAP, PINK_NOISE, EXERCISE_BIKE]
 BG_NOISE_DATA = {
     noise: librosa.core.load(path=''.join([BG_NOISE_PATH, noise, '.wav']), sr=SAMPLE_RATE)[0]
     for noise in wanted_bg_noise
@@ -157,28 +154,45 @@ class AugmentationOffline(object):
     #################################################
     @classmethod
     def _adds_noise(cls, data, noise_type, noise_weight, offset):
-        data = data + noise_weight * BG_NOISE_DATA[noise_type][offset:offset + SAMPLE_LENGTH]
+        if noise_weight>0:
+            data = data + noise_weight * BG_NOISE_DATA[noise_type][offset:offset + SAMPLE_LENGTH]
         return data
 
     @classmethod
-    def adds_running_tap_noise(cls, data):
-        return cls._adds_noise(data, RUNNING_TAP, 0.2, SAMPLE_LENGTH)
+    def _adds_running_tap_noise(cls, data):
+        ratio, range =  3, 0.01
+        weight = np.random.uniform(-ratio*range, range)
+        return cls._adds_noise(data, RUNNING_TAP, weight, SAMPLE_LENGTH)
 
     @classmethod
-    def adds_exercise_bike_noise(cls, data):
-        return cls._adds_noise(data, EXERCISE_BIKE, 0.5, 20 * SAMPLE_LENGTH)
+    def _adds_exercise_bike_noise(cls, data):
+        ratio, range = 3, 0.03
+        weight = np.random.uniform(-ratio*range, range)
+        return cls._adds_noise(data, EXERCISE_BIKE, weight, 20 * SAMPLE_LENGTH)
 
     @classmethod
-    def adds_white_noise(cls, data):
-        return cls._adds_noise(data, WHITE_NOISE, 0.03, 10 * SAMPLE_LENGTH)
+    def _adds_white_noise(cls, data):
+        ratio, range = 3, 0.002
+        weight = np.random.uniform(-ratio*range, range)
+        return cls._adds_noise(data, WHITE_NOISE, weight, 10 * SAMPLE_LENGTH)
 
     @classmethod
-    def adds_pink_noise(cls, data):
-        return cls._adds_noise(data, PINK_NOISE, 0.05, 10 * SAMPLE_LENGTH)
+    def _adds_pink_noise(cls, data):
+        ratio, range = 3, 0.003
+        weight = np.random.uniform(-ratio*range, range)
+        return cls._adds_noise(data, PINK_NOISE, weight, 10 * SAMPLE_LENGTH)
 
     @classmethod
-    def adds_dude_miaowing_noise(cls, data):
-        return cls._adds_noise(data, DUDE_MIAOWING, 1, int(2.5 * SAMPLE_LENGTH))
+    def adds_noise(cls, data):
+        noise_adder = random.choice(
+            [
+                cls._adds_white_noise,
+                cls._adds_pink_noise,
+                cls._adds_exercise_bike_noise,
+                cls._adds_running_tap_noise
+            ]
+        )
+        return noise_adder(data)
 
     #################################################
     # Stretch
@@ -193,12 +207,9 @@ class AugmentationOffline(object):
         return data
 
     @classmethod
-    def stretch_slow(cls, data):
-        return cls._stretch(data, 0.85)
-
-    @classmethod
-    def stretch_fast(cls, data):
-        return cls._stretch(data, 1.3)
+    def stretch(cls, data):
+        rate = np.random.uniform(0.95, 1.05)
+        return cls._stretch(data, rate)
 
     #################################################
     # Pitch
@@ -209,12 +220,9 @@ class AugmentationOffline(object):
         return data
 
     @classmethod
-    def pitch_up(cls, data):
-        return cls._pitch(data, 3)
-
-    @classmethod
-    def pitch_down(cls, data):
-        return cls._pitch(data, -3)
+    def pitch(cls, data):
+        n_steps = np.random.randint(-2, 2)
+        return cls._pitch(data, n_steps)
 
     #################################################
     # Shift time
@@ -224,27 +232,32 @@ class AugmentationOffline(object):
         return np.roll(data, roll_length)
 
     @classmethod
-    def shift_time_forward(cls, data):
-        return cls._time(data, 2000)
-
-    @classmethod
-    def shift_time_backward(cls, data):
-        return cls._time(data, -2000)
+    def shift_time(cls, data):
+        roll_length = np.random.randint(-1600, 1600)
+        return cls._time(data, roll_length)
 
 
-def conduct_augmentation_offline(data):
+def conduct_augmentation(data):
     augmentation_list = [
-        (AugmentationOffline.adds_white_noise, WHITE_NOISE),
-        (AugmentationOffline.adds_pink_noise, PINK_NOISE),
-        (AugmentationOffline.adds_exercise_bike_noise, EXERCISE_BIKE),
-        (AugmentationOffline.adds_running_tap_noise, RUNNING_TAP),
-        (AugmentationOffline.adds_dude_miaowing_noise, DUDE_MIAOWING),
-        (AugmentationOffline.stretch_slow, STRETCH_SLOW),
-        (AugmentationOffline.stretch_fast, STRETCH_FAST),
-        (AugmentationOffline.pitch_up, PITCH_UP),
-        (AugmentationOffline.pitch_down, PITCH_DOWN),
-        (AugmentationOffline.shift_time_forward, SHIFT_TIME_FORWARD),
-        (AugmentationOffline.shift_time_backward, SHIFT_TIME_BACKWARD),
+        (AugmentationOffline.adds_noise, NOISE),
+        # (AugmentationOffline.stretch, STRETCH),
+        # (AugmentationOffline.pitch, PITCH),
+        (AugmentationOffline.shift_time, SHIFT_TIME),
     ]
-    for aug in augmentation_list:
-        yield list(map(aug[0], data)), aug[1]
+    time_begin = time()
+    def _combine_augmentations(data):
+        for aug in augmentation_list:
+            data = aug[0](data)
+        return data
+    data = list(map(_combine_augmentations, data))
+    '''
+    for idx in range(0, len(data), block_size):
+        begin = idx
+        end = (idx + block_size) if (idx + block_size) < len(data) else len(data) - 1
+        for aug in augmentation_list:
+            data[begin:end] = list(map(aug[0], data[begin:end]))
+    print('   Total rounds : {0}'.format(len(data) // block_size))
+    '''
+    time_end = time()
+    # print('   Cost {0} in augmentation'.format(time_end-time_begin))
+    return data

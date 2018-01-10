@@ -29,12 +29,12 @@ from keras.layers import TimeDistributed, Bidirectional
 from keras.layers.advanced_activations import LeakyReLU, PReLU
 from keras.models import Model
 from keras.utils import to_categorical
-from keras.optimizers import SGD
+from keras.optimizers import SGD, RMSprop
 from keras.callbacks import LearningRateScheduler
 from keras.callbacks import Callback, ModelCheckpoint, ReduceLROnPlateau, EarlyStopping, CSVLogger
 from keras.applications import resnet50
 
-from data_generator import AudioGenerator
+from data_generator_aug_offline import AudioGenerator
 from data_split import TRAIN_SPLIT_FILE_TEMP, VALID_SPLIT_FILE_TEMP, SPLIT_SEP
 from fe_and_augmentation import LEGAL_LABELS
 from fe_and_augmentation import SPEC, LMEL, MFCC, LFBANK
@@ -45,7 +45,7 @@ import gc
 from ipdb import set_trace as st
 
 train_dir = '../data/input/processed_train/'
-test_dir = '../data/input/processed_test/'
+test_dir = '../data/input_backup/test_augmentation/'
 
 ##################################################
 # global parameters
@@ -131,7 +131,9 @@ def get_model():
     # run through model
     model = Model(inputs=input_layer, outputs=preds)
 
-    model.compile(loss='categorical_hinge', optimizer='rmsprop', metrics=['acc'])
+
+    opt = RMSprop(lr=1e-3, clipnorm=0.3)
+    model.compile(loss='categorical_hinge', optimizer=opt, metrics=['acc'])
     # model.compile(loss='categorical_hinge', optimizer='adam', metrics=['acc'])
     #
     # opt = SGD(lr=0.01, momentum=0.9, nesterov=True)
@@ -152,14 +154,14 @@ lr_scheduler = LearningRateScheduler(scheduler)
 # learning rate plateau
 lr_plateau = ReduceLROnPlateau(
     monitor='val_acc', mode='max',
-    patience=3, cooldown=2,
+    patience=3, cooldown=3,
     factor=np.sqrt(0.1), verbose=1, min_lr=1e-5, epsilon=8e-4)
 
 # early stopping
 early_stopping = EarlyStopping(monitor='val_acc', mode='max', patience=10)
 
 # csv logger
-csv_logger  = CSVLogger('../data/output/log/train_log.csv')
+# csv_logger  = CSVLogger('../data/output/log/train_log_{0}.csv'.format(FLAGS.fold))
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -169,46 +171,38 @@ if __name__ == '__main__':
     ##################################################
     # load test data
     ##################################################
-    print('prepare test data')
-    d_test = pickle.load(open(test_dir + 'test_{0}.pkl'.format(FE_TYPE), 'rb'))
+    print('Prepare test data')
+    d_test = pickle.load(open(test_dir + 'test_original.pkl', 'rb'))
     fname_test, X_test = d_test['fname'], d_test['data']
     X_test = X_test.reshape(tuple(list(X_test.shape) + [1])).astype('float32')
     del d_test
     gc.collect()
 
     ##################################################
-    # make data generator
+    # create data generator
     ##################################################
-    print('prepare train data in fold {0}'.format(FLAGS.fold))
+    print('Prepare train data in fold {0}'.format(FLAGS.fold))
     train_generator = AudioGenerator(
-        root_dir='../data/input/train/audio/',
+        root_dir='../data/input_backup/train_augmentation/',
         k=FLAGS.fold,
-        file_temp=TRAIN_SPLIT_FILE_TEMP,
-        ori_batch_size=batch_size,
+        batch_size=batch_size,
         train_or_valid='train',
-        augmentation_prob=0,
     )
-    # train_generator.steps_per_epoch = train_generator.steps_per_epoch * 2
-    print('prepare valid data in fold {0}'.format(FLAGS.fold))
+    print('Prepare valid data in fold {0}'.format(FLAGS.fold))
     valid_generator = AudioGenerator(
-        root_dir='../data/input/train/audio/',
+        root_dir='../data/input_backup/train_augmentation/',
         k=FLAGS.fold,
-        file_temp=VALID_SPLIT_FILE_TEMP,
-        ori_batch_size=batch_size,
+        batch_size=batch_size,
         train_or_valid='valid',
     )
     # prepare valid data
-    fname_valid = valid_generator.in_fold_data['fname']
-    truth_valid = valid_generator.in_fold_data['truth']
-    X_valid, y_valid = valid_generator.in_fold_data['data'], valid_generator.in_fold_data['label']
-    X_valid, y_valid = np.array(conduct_fe(X_valid, fe_type=FE_TYPE)), np.array(y_valid)
+    X_valid, y_valid = valid_generator.ori_data['data'], np.array(valid_generator.ori_data['label'])
     X_valid = X_valid.reshape(tuple(list(X_valid.shape) + [1])).astype('float32')
     del valid_generator
     gc.collect()
 
     preds_test = np.zeros((len(fname_test), n_classes))
     preds_valid = np.zeros((X_valid.shape[0], n_classes))
-    # st(context=21)
 
     ##################################################
     # train in folds
@@ -225,15 +219,15 @@ if __name__ == '__main__':
             save_weights_only=True
         )
         model = get_model()
-        # st(context=21)
         hist = model.fit_generator(
-            generator=train_generator.generator(FE_TYPE),
+            generator=train_generator.generator(),
             steps_per_epoch=train_generator.steps_per_epoch,
             epochs=epochs,
             validation_data=(X_valid, y_valid),
-            callbacks=[lr_plateau, model_checkpoint, early_stopping, csv_logger],
+            callbacks=[lr_plateau, model_checkpoint, early_stopping],
             shuffle=True,
         )
+        train_generator.check_ori_and_aug_hits()
         gc.collect()
         bst_acc = max(hist.history['val_acc'])
         print('\nBest model val_acc : %.5f\n' % bst_acc)
@@ -246,6 +240,7 @@ if __name__ == '__main__':
         del model
         gc.collect()
 
+
     del X_test
     gc.collect()
 
@@ -257,8 +252,7 @@ if __name__ == '__main__':
 
     # produce in fold predict file for CV
     in_fold = pd.DataFrame()
-    in_fold['fname'] = fname_valid
-    in_fold['truth'] = truth_valid
+    in_fold['truth'] = [LEGAL_LABELS[index] for index in np.argmax(y_valid, axis=1)]
     in_fold['preds'] = [LEGAL_LABELS[index] for index in labels_index_valid]
     acc_counts = 0
     for truth, preds in zip(in_fold['truth'], in_fold['preds']):

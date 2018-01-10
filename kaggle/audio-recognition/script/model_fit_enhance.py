@@ -29,13 +29,11 @@ from keras.layers import TimeDistributed, Bidirectional
 from keras.layers.advanced_activations import LeakyReLU, PReLU
 from keras.models import Model
 from keras.utils import to_categorical
-from keras.optimizers import SGD
+from keras.optimizers import SGD, RMSprop
 from keras.callbacks import LearningRateScheduler
 from keras.callbacks import Callback, ModelCheckpoint, ReduceLROnPlateau, EarlyStopping, CSVLogger
-from keras.applications import resnet50
 
-from data_generator import AudioGenerator
-from data_split import TRAIN_SPLIT_FILE_TEMP, VALID_SPLIT_FILE_TEMP, SPLIT_SEP
+from data_generator_enhance import AudioGenerator
 from fe_and_augmentation import LEGAL_LABELS
 from fe_and_augmentation import SPEC, LMEL, MFCC, LFBANK
 from fe_and_augmentation import conduct_fe
@@ -45,7 +43,7 @@ import gc
 from ipdb import set_trace as st
 
 train_dir = '../data/input/processed_train/'
-test_dir = '../data/input/processed_test/'
+test_dir = '../data/input_backup/test_augmentation/'
 
 ##################################################
 # global parameters
@@ -56,7 +54,6 @@ RUNS_IN_FOLD = 5
 batch_size = 128
 epochs = 60
 FE_TYPE = SPEC
-
 
 
 ##################################################
@@ -104,26 +101,10 @@ def get_model():
     layer = Reshape((12, 128))(layer)
 
     # bi direction lstm
-    # layer = Bidirectional(GRU(units=48, return_sequences=True))(layer)
     layer = Bidirectional(LSTM(units=48, return_sequences=True))(layer)
     layer = Bidirectional(LSTM(units=48, return_sequences=False))(layer)
 
-    # bi direction gru
-    # layer = Bidirectional(GRU(units=48, return_sequences=True))(layer)
-    # layer = Bidirectional(GRU(units=48, return_sequences=False))(layer)
-
     layer = Dropout(0.5)(layer)
-
-    # fc1
-    # layer = Flatten()(layer)
-    # layer = Dense(units=512)(layer)
-    # layer = Activation('relu')(layer)
-    # layer = BatchNormalization()(layer)
-    # layer = Dropout(0.5)(layer)
-
-    # fc2
-    # layer = Dense(units=256)(layer)
-    # layer = Activation('relu')(layer)
 
     # output layer
     preds = Dense(units=n_classes, activation='softmax')(layer)
@@ -131,11 +112,8 @@ def get_model():
     # run through model
     model = Model(inputs=input_layer, outputs=preds)
 
-    model.compile(loss='categorical_hinge', optimizer='rmsprop', metrics=['acc'])
-    # model.compile(loss='categorical_hinge', optimizer='adam', metrics=['acc'])
-    #
-    # opt = SGD(lr=0.01, momentum=0.9, nesterov=True)
-    # model.compile(loss='categorical_hinge', optimizer=opt, metrics=['acc'])
+    opt = RMSprop(lr=1e-3, clipnorm=0.3)
+    model.compile(loss='categorical_hinge', optimizer=opt, metrics=['acc'])
 
     return model
 
@@ -146,69 +124,63 @@ def get_model():
 
 # learning rate scheduler
 def scheduler(epoch):
-    return 0.001 if epoch<10 else 1e-6
+    return 0.001 if epoch < 10 else 1e-6
+
+
 lr_scheduler = LearningRateScheduler(scheduler)
 
 # learning rate plateau
 lr_plateau = ReduceLROnPlateau(
     monitor='val_acc', mode='max',
-    patience=3, cooldown=2,
-    factor=np.sqrt(0.1), verbose=1, min_lr=1e-5, epsilon=8e-4)
+    patience=3, cooldown=3,
+    factor=np.sqrt(0.1), verbose=1, min_lr=3e-6, epsilon=8e-4)
 
 # early stopping
 early_stopping = EarlyStopping(monitor='val_acc', mode='max', patience=10)
 
-# csv logger
-csv_logger  = CSVLogger('../data/output/log/train_log.csv')
-
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--fold', type=str, default='0', help='which fold')
+    parser.add_argument('--enhance', type=str, default='0', help='which enhance')
     FLAGS, _ = parser.parse_known_args()
 
     ##################################################
     # load test data
     ##################################################
-    print('prepare test data')
-    d_test = pickle.load(open(test_dir + 'test_{0}.pkl'.format(FE_TYPE), 'rb'))
+    print('Prepare test data')
+    d_test = pickle.load(open(test_dir + 'test_original.pkl', 'rb'))
     fname_test, X_test = d_test['fname'], d_test['data']
     X_test = X_test.reshape(tuple(list(X_test.shape) + [1])).astype('float32')
     del d_test
     gc.collect()
 
     ##################################################
-    # make data generator
+    # create data generator
     ##################################################
-    print('prepare train data in fold {0}'.format(FLAGS.fold))
+    print('Prepare train data in fold {0}'.format(FLAGS.fold))
     train_generator = AudioGenerator(
-        root_dir='../data/input/train/audio/',
+        root_dir='../data/input_backup/train_augmentation/',
         k=FLAGS.fold,
-        file_temp=TRAIN_SPLIT_FILE_TEMP,
-        ori_batch_size=batch_size,
+        batch_size=batch_size,
         train_or_valid='train',
-        augmentation_prob=0,
+        enhance=FLAGS.enhance
     )
-    # train_generator.steps_per_epoch = train_generator.steps_per_epoch * 2
-    print('prepare valid data in fold {0}'.format(FLAGS.fold))
+    print('Prepare valid data in fold {0}'.format(FLAGS.fold))
     valid_generator = AudioGenerator(
-        root_dir='../data/input/train/audio/',
+        root_dir='../data/input_backup/train_augmentation/',
         k=FLAGS.fold,
-        file_temp=VALID_SPLIT_FILE_TEMP,
-        ori_batch_size=batch_size,
+        batch_size=batch_size,
         train_or_valid='valid',
+        enhance=FLAGS.enhance
     )
     # prepare valid data
-    fname_valid = valid_generator.in_fold_data['fname']
-    truth_valid = valid_generator.in_fold_data['truth']
-    X_valid, y_valid = valid_generator.in_fold_data['data'], valid_generator.in_fold_data['label']
-    X_valid, y_valid = np.array(conduct_fe(X_valid, fe_type=FE_TYPE)), np.array(y_valid)
+    X_valid, y_valid = valid_generator.ori_data['data'], np.array(valid_generator.ori_data['label'])
     X_valid = X_valid.reshape(tuple(list(X_valid.shape) + [1])).astype('float32')
     del valid_generator
     gc.collect()
 
     preds_test = np.zeros((len(fname_test), n_classes))
     preds_valid = np.zeros((X_valid.shape[0], n_classes))
-    # st(context=21)
 
     ##################################################
     # train in folds
@@ -216,7 +188,8 @@ if __name__ == '__main__':
     for run in range(RUNS_IN_FOLD):
         print('\nFold {0} runs {1}'.format(FLAGS.fold, run))
         # use model check point callbacks
-        bst_model_path = '../data/output/model/nn_fold{0}_run{1}_{2}.h5'.format(FLAGS.fold, run, FE_TYPE)
+        bst_model_path = '../data/output/model/enhance{0}/nn_fold{1}_run{2}_{3}.h5'.format(
+            FLAGS.enhance, FLAGS.fold, run, FE_TYPE)
         model_checkpoint = ModelCheckpoint(
             bst_model_path,
             monitor='val_acc',
@@ -225,13 +198,12 @@ if __name__ == '__main__':
             save_weights_only=True
         )
         model = get_model()
-        # st(context=21)
         hist = model.fit_generator(
-            generator=train_generator.generator(FE_TYPE),
+            generator=train_generator.generator(),
             steps_per_epoch=train_generator.steps_per_epoch,
             epochs=epochs,
             validation_data=(X_valid, y_valid),
-            callbacks=[lr_plateau, model_checkpoint, early_stopping, csv_logger],
+            callbacks=[lr_plateau, model_checkpoint, early_stopping],
             shuffle=True,
         )
         gc.collect()
@@ -257,19 +229,20 @@ if __name__ == '__main__':
 
     # produce in fold predict file for CV
     in_fold = pd.DataFrame()
-    in_fold['fname'] = fname_valid
-    in_fold['truth'] = truth_valid
+    in_fold['truth'] = [LEGAL_LABELS[index] for index in np.argmax(y_valid, axis=1)]
     in_fold['preds'] = [LEGAL_LABELS[index] for index in labels_index_valid]
     acc_counts = 0
     for truth, preds in zip(in_fold['truth'], in_fold['preds']):
         acc_counts += 1 if truth == preds else 0
     acc_in_fold = acc_counts / len(in_fold['preds'])
     print('\nFold %s valid accuracy : %.5f ' % (FLAGS.fold, acc_in_fold))
-    in_fold.to_csv('../data/output/valid/valid_by_{0}fold_acc{1}.csv'.format(FLAGS.fold, acc_in_fold), index=False)
+    in_fold.to_csv('../data/output/valid/enhance{0}/valid_by_{1}fold_acc{2}.csv'.format(
+        FLAGS.enhance, FLAGS.fold, acc_in_fold), index=False)
 
     # produce in fold submit file for ensemble
     submit = pd.DataFrame()
     submit['fname'] = fname_test
     submit['label'] = [LEGAL_LABELS[index] for index in labels_index_test]
-    submit.to_csv('../data/output/submit/submit_by_{0}fold.csv'.format(FLAGS.fold), index=False)
+    submit.to_csv('../data/output/submit/enhance{0}/submit_by_{1}fold.csv'.format(
+        FLAGS.enhance, FLAGS.fold), index=False)
     print('\nFold {0} done'.format(FLAGS.fold))

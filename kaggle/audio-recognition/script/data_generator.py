@@ -56,11 +56,6 @@ class AudioGenerator(object):
                 in_fold_data['truth'].append(label)
                 in_fold_data['data'].append(data)
                 in_fold_data['fname'].append(file_path)
-        ## do offline augmentation (librosa too slow)
-        ## double train data with a copy with augmentation
-        # if self.train_or_valid=='train':
-        #     in_fold_data['data'].extend(list(map(Augmentataion.stretch, in_fold_data['data'])))
-        #     in_fold_data['label'].extend(in_fold_data['label'])
         label_len = len(in_fold_data['label'])
         data_len = len(in_fold_data['data'])
         assert label_len == data_len, 'label len {0} and data len {1} not match'.format(label_len, data_len)

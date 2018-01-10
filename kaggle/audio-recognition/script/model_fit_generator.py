@@ -123,8 +123,8 @@ def get_model():
     layer = Bidirectional(LSTM(units=48, return_sequences=False))(layer)
 
     # bi direction gru
-    layer = Bidirectional(GRU(units=48, return_sequences=True))(layer)
-    layer = Bidirectional(GRU(units=48, return_sequences=False))(layer)
+    # layer = Bidirectional(GRU(units=48, return_sequences=True))(layer)
+    # layer = Bidirectional(GRU(units=48, return_sequences=False))(layer)
 
     layer = Dropout(0.5)(layer)
 

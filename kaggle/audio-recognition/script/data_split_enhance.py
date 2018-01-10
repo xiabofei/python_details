@@ -46,6 +46,8 @@ VALID_SPLIT_FILE_TEMP = '_fold_valid.dat'
 
 # K fold
 K = 5
+# Unknown Enhance Rate
+UNKNOWN_ENHANCE_RATE = 8
 
 # 10 wanted words and others unknown words
 wanted_words = 'yes,no,up,down,left,right,on,off,stop,go'.split(',')
@@ -127,6 +129,9 @@ def split_data_by_Kfold(K, silence_percentage, unknown_percentage):
 
         ## Step3
         ## ----Add 'silence' and 'unknown' according to preset 'silence_percentage' and 'unknown_percentage'
+        ## train中的known数据是固定的 搭配不同的unknown数据
+        ## 用UNKNOWN_ENHANCE_RATE控制增加几组不同的数据
+        ## 保持一套valid不变 生成多套train
         addition_silence_unknown_count = 0
         for set_index in [VALID, TRAIN]:
             set_size = len(wanted_data[set_index])
@@ -142,9 +147,13 @@ def split_data_by_Kfold(K, silence_percentage, unknown_percentage):
             addition_silence_unknown_count += unknown_size
             if set_index==TRAIN:
                 random.shuffle(unknown_data_train)
-                st(context=21)
-                wanted_data[set_index].extend(unknown_data_train[:unknown_size])
+                for enhance_idx in range(UNKNOWN_ENHANCE_RATE):
+                    start = enhance_idx * unknown_size
+                    end = (enhance_idx+1) * unknown_size
+                    print('enhance unknown start {0} end {1}'.format(start, end))
+                    wanted_data[TRAIN+str(enhance_idx)] = wanted_data[TRAIN] + unknown_data_train[start:end]
             else:
+                # 这部分固定住不变 valid只要是不变的 基本CV跟LB就是稳定的~
                 random.shuffle(unknown_data_valid)
                 wanted_data[set_index].extend(unknown_data_valid[:unknown_size])
         print('addition silence unknown count : {0}'.format(addition_silence_unknown_count))
@@ -154,6 +163,10 @@ def split_data_by_Kfold(K, silence_percentage, unknown_percentage):
         for set_index in [VALID, TRAIN]:
             random.shuffle(wanted_data[set_index])
             uid[set_index] = list(set(uid[set_index]))
+        ## ----Shuffle enhance unknown data
+        for enhance_idx in range(UNKNOWN_ENHANCE_RATE):
+            random.shuffle(wanted_data[TRAIN+str(enhance_idx)])
+
         ret.append(wanted_data)
         uid_list.append(uid)
         print('')
@@ -200,23 +213,22 @@ def record_Kfold_result(data):
     label_count_all = []
     for k in range(K):
         label_count = {TRAIN: defaultdict(int), VALID: defaultdict(int)}
-        # record train data in fold k
-        fold_data_trn = data[k][TRAIN]
-        with open('../data/input/train/audio/{0}'.format(k)+TRAIN_SPLIT_FILE_TEMP, 'w') as f:
-            for d in fold_data_trn:
-                assert d['label'] in labels_all, 'unwanted label {0} occurs'.format(d['label'])
-                label_count[TRAIN][d['label']] += 1
-                f.write(SPLIT_SEP.join([d['label'], d['file']]) + CLRF)
+        # record unknown enhance train data in fold k
+        for enhance_idx in range(UNKNOWN_ENHANCE_RATE):
+            fold_data_trn = data[k][TRAIN+str(enhance_idx)]
+            with open('../data/input/train/audio/{0}fold_enhance{1}_train.dat'.format(k, enhance_idx), 'w') as f:
+                for d in fold_data_trn:
+                    assert d['label'] in labels_all, 'unwanted label {0} occurs'.format(d['label'])
+                    label_count[TRAIN][d['label']] += 1
+                    f.write(SPLIT_SEP.join([d['label'], d['file']]) + CLRF)
         # keep valid data unchanged
-        '''
         # record valid data in fold k
         fold_data_vld = data[k][VALID]
-        with open('../data/input/train/audio/{0}'.format(k)+VALID_SPLIT_FILE_TEMP, 'w') as f:
+        with open('../data/input/train/audio/{0}fold_valid.dat'.format(k), 'w') as f:
             for d in fold_data_vld:
                 assert d['label'] in labels_all, 'unwanted label {0} occurs'.format(d['label'])
                 label_count[VALID][d['label']] += 1
                 f.write(SPLIT_SEP.join([d['label'], d['file']]) + CLRF)
-        '''
         label_count_all.append(label_count)
 
 
