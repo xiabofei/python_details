@@ -16,6 +16,7 @@ from data_split import wanted_words, SILENCE_LABEL, UNKNOWN_WORD_LABEL
 from keras.preprocessing import image
 from time import time
 from multiprocessing.dummy import Pool
+import random
 
 from ipdb import set_trace as st
 
@@ -37,13 +38,15 @@ WHITE_NOISE = 'white_noise'
 RUNNING_TAP = 'running_tap'
 PINK_NOISE = 'pink_noise'
 EXERCISE_BIKE = 'exercise_bike'
+DOING_THE_DISHES = 'doing_the_dishes'
+DUDE_MIAOWING = 'dude_miaowing'
 
 NOISE = 'noise'
 STRETCH = 'stretch'
 PITCH = 'pitch'
 SHIFT_TIME = 'shift_time'
 
-wanted_bg_noise = [WHITE_NOISE, RUNNING_TAP, PINK_NOISE, EXERCISE_BIKE]
+wanted_bg_noise = [WHITE_NOISE, RUNNING_TAP, PINK_NOISE, EXERCISE_BIKE, DOING_THE_DISHES, DUDE_MIAOWING]
 BG_NOISE_DATA = {
     noise: librosa.core.load(path=''.join([BG_NOISE_PATH, noise, '.wav']), sr=SAMPLE_RATE)[0]
     for noise in wanted_bg_noise
@@ -148,6 +151,69 @@ class Augmentataion(object):
 ##################################################################################################
 # Data augmentation offline
 ##################################################################################################
+class SilenceEnhance(object):
+    @classmethod
+    def _adds_noise(cls, data, noise_type, noise_weight, offset):
+        if noise_weight>0:
+            data = data + noise_weight * BG_NOISE_DATA[noise_type][offset:offset + SAMPLE_LENGTH]
+        return data
+
+    @classmethod
+    def _adds_doing_the_dishes_noise(cls, data):
+        # 90s
+        weight = np.random.beta(1,3)*1
+        offset = int(np.random.uniform(0.0, 85.0)*SAMPLE_LENGTH)
+        return cls._adds_noise(data, DOING_THE_DISHES, weight, offset)
+
+    @classmethod
+    def _adds_dude_miaowing_noise(cls, data):
+        # 60s
+        weight = np.random.beta(1, 3) * 1
+        offset = int(np.random.uniform(0.0, 55.0)*SAMPLE_LENGTH)
+        return cls._adds_noise(data, DUDE_MIAOWING, weight, offset)
+
+    @classmethod
+    def _adds_running_tap_noise(cls, data):
+        # 60s
+        weight = np.random.beta(1,3)* 1
+        offset = int(np.random.uniform(0.0, 55.0)*SAMPLE_LENGTH)
+        return cls._adds_noise(data, RUNNING_TAP, weight, offset)
+
+    @classmethod
+    def _adds_exercise_bike_noise(cls, data):
+        # 60s
+        weight = np.random.beta(1,3) * 1
+        offset = int(np.random.uniform(0.0, 55.0)*SAMPLE_LENGTH)
+        return cls._adds_noise(data, EXERCISE_BIKE, weight, offset)
+
+    @classmethod
+    def _adds_white_noise(cls, data):
+        # 60s
+        weight = np.random.beta(1, 3) * 1
+        offset = int(np.random.uniform(0.0, 55.0)*SAMPLE_LENGTH)
+        return cls._adds_noise(data, WHITE_NOISE, weight, offset)
+
+    @classmethod
+    def _adds_pink_noise(cls, data):
+        # 60s
+        weight = np.random.beta(1, 3) * 1
+        offset = int(np.random.uniform(0.0, 55.0)*SAMPLE_LENGTH)
+        return cls._adds_noise(data, PINK_NOISE, weight, offset)
+
+    @classmethod
+    def adds_noise(cls, data):
+        noise_adder = random.choice(
+            [
+                cls._adds_doing_the_dishes_noise,
+                cls._adds_dude_miaowing_noise,
+                cls._adds_white_noise,
+                cls._adds_pink_noise,
+                cls._adds_exercise_bike_noise,
+                cls._adds_running_tap_noise
+            ]
+        )
+        return noise_adder(data)
+
 class AugmentationOffline(object):
     #################################################
     # Add background noise
@@ -159,33 +225,53 @@ class AugmentationOffline(object):
         return data
 
     @classmethod
+    def _adds_doing_the_dishes_noise(cls, data):
+        # 90s
+        weight = np.random.beta(1,3)*0.5
+        offset = int(np.random.uniform(0.0, 85.0)*SAMPLE_LENGTH)
+        return cls._adds_noise(data, DOING_THE_DISHES, weight, offset)
+
+    @classmethod
+    def _adds_dude_miaowing_noise(cls, data):
+        # 60s
+        weight = np.random.beta(1, 3) * 0.9
+        offset = int(np.random.uniform(0.0, 55.0)*SAMPLE_LENGTH)
+        return cls._adds_noise(data, DUDE_MIAOWING, weight, offset)
+
+    @classmethod
     def _adds_running_tap_noise(cls, data):
-        ratio, range =  3, 0.01
-        weight = np.random.uniform(-ratio*range, range)
-        return cls._adds_noise(data, RUNNING_TAP, weight, SAMPLE_LENGTH)
+        # 60s
+        weight = np.random.beta(1,3)*0.5
+        offset = int(np.random.uniform(0.0, 55.0)*SAMPLE_LENGTH)
+        return cls._adds_noise(data, RUNNING_TAP, weight, offset)
 
     @classmethod
     def _adds_exercise_bike_noise(cls, data):
-        ratio, range = 3, 0.03
-        weight = np.random.uniform(-ratio*range, range)
-        return cls._adds_noise(data, EXERCISE_BIKE, weight, 20 * SAMPLE_LENGTH)
+        # 60s
+        weight = np.random.beta(1,3)*0.4
+        offset = int(np.random.uniform(0.0, 55.0)*SAMPLE_LENGTH)
+        return cls._adds_noise(data, EXERCISE_BIKE, weight, offset)
 
     @classmethod
     def _adds_white_noise(cls, data):
-        ratio, range = 3, 0.002
-        weight = np.random.uniform(-ratio*range, range)
-        return cls._adds_noise(data, WHITE_NOISE, weight, 10 * SAMPLE_LENGTH)
+        # 60s
+        weight = np.random.beta(1, 3) * 0.05
+        offset = int(np.random.uniform(0.0, 55.0)*SAMPLE_LENGTH)
+        return cls._adds_noise(data, WHITE_NOISE, weight, offset)
 
     @classmethod
     def _adds_pink_noise(cls, data):
-        ratio, range = 3, 0.003
-        weight = np.random.uniform(-ratio*range, range)
-        return cls._adds_noise(data, PINK_NOISE, weight, 10 * SAMPLE_LENGTH)
+        # 60s
+        weight = np.random.beta(1, 3) * 0.05
+        offset = int(np.random.uniform(0.0, 55.0)*SAMPLE_LENGTH)
+        return cls._adds_noise(data, PINK_NOISE, weight, offset)
 
     @classmethod
     def adds_noise(cls, data):
         noise_adder = random.choice(
             [
+                cls._adds_doing_the_dishes_noise,
+                cls._adds_dude_miaowing_noise,
                 cls._adds_white_noise,
                 cls._adds_pink_noise,
                 cls._adds_exercise_bike_noise,
@@ -233,31 +319,18 @@ class AugmentationOffline(object):
 
     @classmethod
     def shift_time(cls, data):
-        roll_length = np.random.randint(-1600, 1600)
+        roll_length = np.random.randint(-2000, 2000)
         return cls._time(data, roll_length)
 
 
 def conduct_augmentation(data):
     augmentation_list = [
         (AugmentationOffline.adds_noise, NOISE),
-        # (AugmentationOffline.stretch, STRETCH),
-        # (AugmentationOffline.pitch, PITCH),
         (AugmentationOffline.shift_time, SHIFT_TIME),
     ]
-    time_begin = time()
-    def _combine_augmentations(data):
-        for aug in augmentation_list:
-            data = aug[0](data)
-        return data
-    data = list(map(_combine_augmentations, data))
-    '''
-    for idx in range(0, len(data), block_size):
-        begin = idx
-        end = (idx + block_size) if (idx + block_size) < len(data) else len(data) - 1
-        for aug in augmentation_list:
-            data[begin:end] = list(map(aug[0], data[begin:end]))
-    print('   Total rounds : {0}'.format(len(data) // block_size))
-    '''
-    time_end = time()
-    # print('   Cost {0} in augmentation'.format(time_end-time_begin))
+    # for aug in augmentation_list:
+    #     if np.random.uniform(0.0, 1.0)<0.1:
+    #         data = list(map(aug[0], data))
+    for aug in augmentation_list:
+        data = list(map(aug[0], data))
     return data

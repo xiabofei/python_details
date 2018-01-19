@@ -47,7 +47,7 @@ VALID_SPLIT_FILE_TEMP = '_fold_valid.dat'
 # K fold
 K = 5
 # Unknown Enhance Rate
-UNKNOWN_ENHANCE_RATE = 8
+UNKNOWN_ENHANCE_RATE = 3
 
 # 10 wanted words and others unknown words
 wanted_words = 'yes,no,up,down,left,right,on,off,stop,go'.split(',')
@@ -94,7 +94,7 @@ def split_data_by_Kfold(K, silence_percentage, unknown_percentage):
         ## Step1
         ## ----Guarantee same 'unknown words' doesn't exist in both train and valid set
         random.shuffle(unknown_words)
-        _unknown_words_train = unknown_words[:10]
+        _unknown_words_train = unknown_words[:15]
         _unknown_words_valid = unknown_words[10:]
         unknown_data_train = []
         unknown_data_valid = []
@@ -237,7 +237,7 @@ def run(K):
     ## ----split data by k folds and preset each fold's silence percentage / unknown percentage
     ## ----since silence data is relative easy to predict so reduce the percentage to 5
     ## ----unknown percentage is preset as 10, since public lb's unknown is 10%
-    data, uid_list = split_data_by_Kfold(K, silence_percentage=5, unknown_percentage=10)
+    data, uid_list = split_data_by_Kfold(K, silence_percentage=10, unknown_percentage=10)
     ## step2
     ## ----guarantee same audio contributor not in train or valid same fold
     ## ----guarantee same 'unknown' words not in train or valid same fold

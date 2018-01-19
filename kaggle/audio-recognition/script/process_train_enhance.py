@@ -2,6 +2,8 @@
 
 from fe_and_augmentation import read_raw_wav, SPLIT_SEP, LEGAL_LABELS, SAMPLE_LENGTH, LABEL_INDEX
 from fe_and_augmentation import K
+from fe_and_augmentation import AugmentationOffline
+from fe_and_augmentation import SilenceEnhance
 from fe_and_augmentation import SPEC
 from data_split_enhance import UNKNOWN_ENHANCE_RATE
 import pickle
@@ -11,6 +13,7 @@ import gc
 from ipdb import set_trace as st
 
 TEST_LENGTH = 10
+ZERO_SILENCE_RATE = 0.2672
 
 fe_type = SPEC
 
@@ -22,14 +25,18 @@ def produce_train_data():
                 in_fold_data = {'label': [], 'data': []}
                 with open(root_dir+'{0}fold_enhance{1}_train.dat'.format(k, enhance_idx), 'r') as f:
                     for index, l in enumerate(f.readlines()):
-                        if index >= TEST_LENGTH:
-                            break
+                        # if index >= TEST_LENGTH:
+                        #     break
                         label, file_path = l.strip().split(SPLIT_SEP)
                         assert label in LEGAL_LABELS, 'illegal label {0}'.format(label)
                         if label not in ['silence']:
                             data = read_raw_wav(file_path)
                         else:
-                            data = np.zeros(SAMPLE_LENGTH)
+                            # add zero silence according to public lb
+                            if np.random.uniform(0.0, 1.0) < ZERO_SILENCE_RATE:
+                                data = np.zeros(SAMPLE_LENGTH)
+                            else:
+                                data = SilenceEnhance.adds_noise(np.zeros(SAMPLE_LENGTH))
                         in_fold_data['label'].append(LABEL_INDEX[label])
                         in_fold_data['data'].append(data)
 
@@ -51,18 +58,24 @@ def produce_train_data():
                 gc.collect()
                 print('  create enhance {0} data done\n'.format(enhance_idx))
         else:
+            print('pass create valid data')
+            '''
             print('  create valid data begin')
             in_fold_data = {'label': [], 'data': []}
             with open(root_dir+'{0}fold_valid.dat'.format(k), 'r') as f:
                 for index, l in enumerate(f.readlines()):
-                    if index >= TEST_LENGTH:
-                        break
+                    #if index >= TEST_LENGTH:
+                    #    break
                     label, file_path = l.strip().split(SPLIT_SEP)
                     assert label in LEGAL_LABELS, 'illegal label {0}'.format(label)
                     if label not in ['silence']:
                         data = read_raw_wav(file_path)
                     else:
-                        data = np.zeros(SAMPLE_LENGTH)
+                        # add zero silence according to public lb
+                        if np.random.uniform(0.0, 1.0) < ZERO_SILENCE_RATE:
+                            data = np.zeros(SAMPLE_LENGTH)
+                        else:
+                            data = AugmentationOffline.adds_noise(np.zeros(SAMPLE_LENGTH))
                     in_fold_data['label'].append(LABEL_INDEX[label])
                     in_fold_data['data'].append(data)
                 # step2. check label and data dimension
@@ -81,6 +94,7 @@ def produce_train_data():
             del in_fold_data
             gc.collect()
             print('  create valid data done\n')
+            '''
 
     root_dir = '../data/input/train/audio/'
     for k in range(K):
@@ -90,8 +104,10 @@ def produce_train_data():
         _conduct_fe_and_augmentation(root_dir, k, 'train')
         gc.collect()
         # in-fold valid
+        '''
         print('Fold {0} valid data for unknown enhance'.format(k))
         _conduct_fe_and_augmentation(root_dir, k, 'valid')
         gc.collect()
+        '''
 
 produce_train_data()
