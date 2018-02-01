@@ -13,11 +13,15 @@ from keras.preprocessing.sequence import pad_sequences
 from keras.layers import Dense
 from keras.layers import Embedding
 from keras.layers import GRU
+from keras.layers import CuDNNGRU
+from keras.layers import CuDNNLSTM
 from keras.layers import Input
 from keras.layers import Dropout
+from keras.layers import Bidirectional
+from keras.layers import BatchNormalization
 
 from keras.models import Model
-from keras.optimizers import RMSprop
+from keras.optimizers import RMSprop, Nadam, Adam
 
 from keras.callbacks import EarlyStopping, ModelCheckpoint, ReduceLROnPlateau
 
@@ -28,7 +32,7 @@ from comm_preprocessing import COMMENT_COL, ID_COL
 
 MAX_NUM_WORDS = 100000  # keras Tokenizer keep MAX_NUM_WORDS-1 words and left index 0 for null word
 MAX_SEQUENCE_LENGTH = 100
-RUNS_IN_FOLD = 5
+RUNS_IN_FOLD = 2
 NUM_OF_LABEL = 6
 
 EPOCHS = 30
@@ -102,19 +106,23 @@ def get_embedding_lookup_table(word_index, glove_path, embedding_dim):
 
 
 def get_model(embedding_lookup_table):
-    input_layer = Input(shape=(MAX_SEQUENCE_LENGTH,))
+    input_layer = Input(shape=(MAX_SEQUENCE_LENGTH,), dtype='int32')
     embedding_layer = Embedding(
         input_dim=embedding_lookup_table.shape[0],
         output_dim=embedding_lookup_table.shape[1],
         weights=[embedding_lookup_table],
         trainable=False
     )(input_layer)
-    layer = GRU(units=64, return_sequences=True)(embedding_layer)
+    layer = embedding_layer
+    layer = Bidirectional(CuDNNGRU(units=64, return_sequences=True))(layer)
     layer = Dropout(0.5)(layer)
-    layer = GRU(units=64, return_sequences=False)(layer)
+    layer = Bidirectional(CuDNNGRU(units=64, return_sequences=False))(layer)
+    # layer = BatchNormalization()(layer)
+    # layer = Dense(32, activation='relu')(layer)
+    # layer = BatchNormalization()(layer)
     output_layer = Dense(6, activation='sigmoid')(layer)
     model = Model(inputs=input_layer, outputs=output_layer)
-    model.compile(loss='binary_crossentropy', optimizer=RMSprop(clipnorm=1), metrics=['accuracy'])
+    model.compile(loss='binary_crossentropy', optimizer=RMSprop(clipnorm=1), metrics=['acc'])
     return model
 
 
@@ -131,7 +139,9 @@ def run_one_fold(fold):
     # get embedding lookup table
     embedding_dim = 50
     embedding_lookup_table = get_embedding_lookup_table(
-        word_index, '../data/input/glove_dir/glove.6B.50d.txt', embedding_dim)
+        word_index, '../data/input/glove_dir/glove.6B.{0}d.txt'.format(embedding_dim), embedding_dim)
+
+    st(context=21)
 
     # read in fold data
     df_trn, df_val = read_data_in_fold(fold)
@@ -162,11 +172,11 @@ def run_one_fold(fold):
         model = get_model(embedding_lookup_table)
 
         # callbacks
-        es = EarlyStopping(monitor='val_loss', patience=5)
+        es = EarlyStopping(monitor='val_acc', mode='max', patience=4)
         bst_model_path = '../data/output/model/{0}fold_{1}run_glove_gru.h5'.format(fold, run)
         mc = ModelCheckpoint(bst_model_path, save_best_only=True, save_weights_only=True)
         rp = ReduceLROnPlateau(
-            monitor='val_loss', mode='min',
+            monitor='val_acc', mode='max',
             patience=3, cooldown=2,
             factor=np.sqrt(0.1),
             verbose=1, min_lr=1e-5, epsilon=8e-4
@@ -182,7 +192,7 @@ def run_one_fold(fold):
             callbacks=[es, mc, rp]
         )
         model.load_weights(bst_model_path)
-        bst_val_score = min(hist.history['val_loss'])
+        bst_val_score = max(hist.history['val_acc'])
         print('\nFold {0} run {1} best val score : {2}'.format(fold, run, bst_val_score))
 
         # predict
