@@ -4,6 +4,8 @@ import re
 from nltk.corpus import stopwords
 from nltk.stem import SnowballStemmer
 
+from ipdb import set_trace as st
+
 # Remove all Non-Alpha Numeric and space
 special_character_removal = re.compile(r'[^a-z\d ]', re.IGNORECASE)
 # Replace all numeric with 'n'
@@ -16,6 +18,41 @@ ID_COL = 'id'
 data_split_dir = '../data/input/data_split/'
 data_comm_preprocessed_dir = '../data/input/data_comm_preprocessed/'
 
+
+# all the words below are included in glove dictionary
+# combine these toxic indicators with 'CommProcess.revise_triple_and_more_letters'
+toxic_indicator_words = [
+    'fuck', 'fucking', 'fucked', 'fuckin', 'fucka', 'fucker', 'fucks', 'fuckers',
+    'shit', 'shitty', 'shite',
+    'stupid', 'stupids',
+    'idiot', 'idiots',
+    'suck', 'sucker', 'sucks', 'sucka', 'sucked', 'sucking',
+    'ass', 'asshole',
+    'gay', 'gays',
+]
+def _get_toxicIndicator_transformers():
+    toxicIndicator_transformers = dict()
+    for word in toxic_indicator_words:
+        tmp_1 = []
+        for c in word:
+            if len(tmp_1)>0:
+                tmp_2 = []
+                for pre in tmp_1:
+                    tmp_2.append(pre+c)
+                    tmp_2.append(pre+c+c)
+                tmp_1 = tmp_2
+            else:
+                tmp_1.append(c)
+                tmp_1.append(c+c)
+        toxicIndicator_transformers[word] = tmp_1
+    return toxicIndicator_transformers
+toxicIndicator_transformers = _get_toxicIndicator_transformers()
+
+# all = 0
+# for k,v in toxicIndicator_transformers.items():
+#     all += len(v) - 1
+# print(all)
+# st(context=21)
 
 class CommProcess(object):
     @staticmethod
@@ -34,13 +71,34 @@ class CommProcess(object):
     def replace_all_numeric(t):
         return replace_numbers.sub('n', t)
 
+    @staticmethod
+    def clean_abbreviation(t):
+        t = re.sub(r"\'s", " ", t)
+        t = re.sub(r"\'ve", " have ", t)
+        t = re.sub(r"can't", "cannot ", t)
+        t = re.sub(r"n't", " not ", t)
+        t = re.sub(r"i'm", "i am ", t)
+        t = re.sub(r"\'re", " are ", t)
+        t = re.sub(r"\'d", " would ", t)
+        t = re.sub(r"\'ll", " will ", t)
+        return t
+
+    @staticmethod
+    def revise_triple_and_more_letters(t):
+        for letter in 'abcdefghijklmnopqrstuvwxyz':
+            reg = letter+"{2,}"
+            t = re.sub(reg, letter+letter, t)
+        return t
+
 
 def execute_comm_process(df):
     comm_process_pipeline = [
         CommProcess.remove_stopwords,
+        CommProcess.clean_abbreviation,
         CommProcess.remove_special_chars,
         CommProcess.replace_all_numeric,
         CommProcess.lower,
+        CommProcess.revise_triple_and_more_letters,
     ]
     df[COMMENT_COL].fillna('NA', inplace=True)
     for cp in comm_process_pipeline:

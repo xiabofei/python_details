@@ -29,10 +29,11 @@ from data_split import K
 from data_split import label_candidates
 from comm_preprocessing import data_comm_preprocessed_dir
 from comm_preprocessing import COMMENT_COL, ID_COL
+from comm_preprocessing import toxicIndicator_transformers
 
-MAX_NUM_WORDS = 100000  # keras Tokenizer keep MAX_NUM_WORDS-1 words and left index 0 for null word
-MAX_SEQUENCE_LENGTH = 100
-RUNS_IN_FOLD = 2
+MAX_NUM_WORDS = 380000  # keras Tokenizer keep MAX_NUM_WORDS-1 words and left index 0 for null word
+MAX_SEQUENCE_LENGTH = 200
+RUNS_IN_FOLD = 5
 NUM_OF_LABEL = 6
 
 EPOCHS = 30
@@ -68,7 +69,7 @@ def get_fitted_tokenizer(df_train, df_test):
     comments_train = df_train[COMMENT_COL].values.tolist()
     comments_test = df_test[COMMENT_COL].values.tolist()
     tokenizer = Tokenizer()
-    tokenizer.num_words = MAX_NUM_WORDS
+    # tokenizer.num_words = MAX_NUM_WORDS
     tokenizer.fit_on_texts(comments_train + comments_test)
     return tokenizer
 
@@ -88,6 +89,12 @@ def get_embedding_lookup_table(word_index, glove_path, embedding_dim):
             vector = asarray(values[1:])
             ret[word] = vector
         print('total {0} word vectors'.format(len(ret)))
+        # add toxic transformer vector
+        for toxic, transformers in toxicIndicator_transformers.items():
+            if toxic in ret.keys():
+                for transformer in transformers:
+                    ret[transformer] = ret[toxic]
+        print('total {0} word vectors after add toxic indicator transformers'.format(len(ret)))
         return ret
 
     # get glove word vector
@@ -117,12 +124,9 @@ def get_model(embedding_lookup_table):
     layer = Bidirectional(CuDNNGRU(units=64, return_sequences=True))(layer)
     layer = Dropout(0.5)(layer)
     layer = Bidirectional(CuDNNGRU(units=64, return_sequences=False))(layer)
-    # layer = BatchNormalization()(layer)
-    # layer = Dense(32, activation='relu')(layer)
-    # layer = BatchNormalization()(layer)
     output_layer = Dense(6, activation='sigmoid')(layer)
     model = Model(inputs=input_layer, outputs=output_layer)
-    model.compile(loss='binary_crossentropy', optimizer=RMSprop(clipnorm=1), metrics=['acc'])
+    model.compile(loss='binary_crossentropy', optimizer=Nadam(clipnorm=1), metrics=['acc'])
     return model
 
 
@@ -134,14 +138,23 @@ def run_one_fold(fold):
     # fit tokenizer
     tokenizer = get_fitted_tokenizer(df_train, df_test)
     word_index = tokenizer.word_index
+    transformers_count = 0
+    all_words = set(word_index.keys())
+    for toxic, transformers in toxicIndicator_transformers.items():
+        for transformer in transformers:
+            if transformer==toxic:
+                continue
+            if transformer in all_words:
+                transformers_count += tokenizer.word_counts[transformer]
+                print(transformer)
+    print('toxic transformer count : {0}'.format(transformers_count))
     print('unique token : {0}'.format(len(word_index)))
 
     # get embedding lookup table
-    embedding_dim = 50
-    embedding_lookup_table = get_embedding_lookup_table(
-        word_index, '../data/input/glove_dir/glove.6B.{0}d.txt'.format(embedding_dim), embedding_dim)
-
-    st(context=21)
+    embedding_dim = 300
+    # glove_path = '../data/input/glove_dir/glove.840B.{0}d.txt'.format(embedding_dim)
+    glove_path = '../data/input/glove_dir/glove.6B.{0}d.txt'.format(embedding_dim)
+    embedding_lookup_table = get_embedding_lookup_table(word_index, glove_path, embedding_dim)
 
     # read in fold data
     df_trn, df_val = read_data_in_fold(fold)
@@ -170,17 +183,18 @@ def run_one_fold(fold):
 
         # model
         model = get_model(embedding_lookup_table)
+        print(model.summary())
 
         # callbacks
-        es = EarlyStopping(monitor='val_acc', mode='max', patience=4)
+        es = EarlyStopping(monitor='val_acc', mode='max', patience=3)
         bst_model_path = '../data/output/model/{0}fold_{1}run_glove_gru.h5'.format(fold, run)
         mc = ModelCheckpoint(bst_model_path, save_best_only=True, save_weights_only=True)
-        rp = ReduceLROnPlateau(
-            monitor='val_acc', mode='max',
-            patience=3, cooldown=2,
-            factor=np.sqrt(0.1),
-            verbose=1, min_lr=1e-5, epsilon=8e-4
-        )
+        # rp = ReduceLROnPlateau(
+        #     monitor='val_acc', mode='max',
+        #     patience=3,
+        #     factor=np.sqrt(0.1),
+        #     verbose=1, min_lr=1e-5, epsilon=8e-4
+        # )
 
         # train
         hist = model.fit(
@@ -189,7 +203,7 @@ def run_one_fold(fold):
             epochs=EPOCHS,
             batch_size=BATCH_SIZE,
             shuffle=True,
-            callbacks=[es, mc, rp]
+            callbacks=[es, mc]
         )
         model.load_weights(bst_model_path)
         bst_val_score = max(hist.history['val_acc'])
