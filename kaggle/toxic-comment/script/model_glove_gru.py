@@ -29,6 +29,8 @@ from comm_preprocessing import data_comm_preprocessed_dir
 from comm_preprocessing import COMMENT_COL, ID_COL
 from comm_preprocessing import toxicIndicator_transformers
 
+from attention_layer import Attention
+
 MAX_NUM_WORDS = 380000  # keras Tokenizer keep MAX_NUM_WORDS-1 words and left index 0 for null word
 MAX_SEQUENCE_LENGTH = 200
 RUNS_IN_FOLD = 5
@@ -125,12 +127,13 @@ def get_model(embedding_lookup_table):
     # units_1 = np.random.randint(60, 150)
     # units_2 = np.random.randint(60, 150)
     # dropout = 0.4 + np.random.rand() * 0.2
-    layer = Bidirectional(CuDNNGRU(units=64, return_sequences=True))(layer)
+    layer = Bidirectional(CuDNNGRU(units=128, return_sequences=True))(layer)
     layer = Dropout(0.5)(layer)
-    layer = Bidirectional(CuDNNGRU(units=64, return_sequences=False))(layer)
+    layer = Attention(MAX_SEQUENCE_LENGTH)(layer)
+    layer = Dense(256, activation='relu')(layer)
     output_layer = Dense(6, activation='sigmoid')(layer)
     model = Model(inputs=input_layer, outputs=output_layer)
-    model.compile(loss='binary_crossentropy', optimizer=Nadam(clipnorm=1), metrics=['acc'])
+    model.compile(loss='binary_crossentropy', optimizer='rmsprop', metrics=['acc'])
     return model
 
 
@@ -156,11 +159,11 @@ def run_one_fold(fold):
 
     # get embedding lookup table
     embedding_dim = 300
-    fasttext_path = '../data/input/fasttext_dir/fasttext.300d.txt'
-    embedding_lookup_table = get_embedding_lookup_table(word_index, fasttext_path, embedding_dim)
-    # glove_path = '../data/input/glove_dir/glove.840B.300d.txt'
+    # fasttext_path = '../data/input/fasttext_dir/fasttext.300d.txt'
+    # embedding_lookup_table = get_embedding_lookup_table(word_index, fasttext_path, embedding_dim)
+    glove_path = '../data/input/glove_dir/glove.840B.300d.txt'
     # glove_path = '../data/input/glove_dir/glove.6B.{0}d.txt'.format(embedding_dim)
-    # embedding_lookup_table = get_embedding_lookup_table(word_index, glove_path, embedding_dim)
+    embedding_lookup_table = get_embedding_lookup_table(word_index, glove_path, embedding_dim)
 
     # read in fold data
     df_trn, df_val = read_data_in_fold(fold)
@@ -193,8 +196,8 @@ def run_one_fold(fold):
 
         # callbacks
         es = EarlyStopping(monitor='val_acc', mode='max', patience=3)
-        # bst_model_path = '../data/output/model/{0}fold_{1}run_glove_gru.h5'.format(fold, run)
-        bst_model_path = '../data/output/model/{0}fold_{1}run_fasttext_gru.h5'.format(fold, run)
+        bst_model_path = '../data/output/model/{0}fold_{1}run_glove_gru.h5'.format(fold, run)
+        # bst_model_path = '../data/output/model/{0}fold_{1}run_fasttext_gru.h5'.format(fold, run)
         mc = ModelCheckpoint(bst_model_path, save_best_only=True, save_weights_only=True)
 
         # train
@@ -224,16 +227,16 @@ def run_one_fold(fold):
     df_preds_test[ID_COL] = id_test
     for idx, label in enumerate(label_candidates):
         df_preds_test[label] = preds_test[idx]
-    df_preds_test.to_csv('../data/output/preds/fasttext_gru/{0}fold_test.csv'.format(fold), index=False)
-    # df_preds_test.to_csv('../data/output/preds/glove_gru/{0}fold_test.csv'.format(fold), index=False)
+    # df_preds_test.to_csv('../data/output/preds/fasttext_gru/{0}fold_test.csv'.format(fold), index=False)
+    df_preds_test.to_csv('../data/output/preds/glove_gru/{0}fold_test.csv'.format(fold), index=False)
 
     preds_valid = preds_valid.T
     df_preds_val = pd.DataFrame()
     df_preds_val[ID_COL] = id_val
     for idx, label in enumerate(label_candidates):
         df_preds_val[label] = preds_valid[idx]
-    df_preds_val.to_csv('../data/output/preds/fasttext_gru/{0}fold_valid.csv'.format(fold), index=False)
-    # df_preds_val.to_csv('../data/output/preds/glove_gru/{0}fold_valid.csv'.format(fold), index=False)
+    # df_preds_val.to_csv('../data/output/preds/fasttext_gru/{0}fold_valid.csv'.format(fold), index=False)
+    df_preds_val.to_csv('../data/output/preds/glove_gru/{0}fold_valid.csv'.format(fold), index=False)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()

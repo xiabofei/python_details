@@ -33,8 +33,12 @@ from comm_preprocessing import data_comm_preprocessed_dir
 from comm_preprocessing import COMMENT_COL, ID_COL
 from comm_preprocessing import toxicIndicator_transformers
 
+from kmax_pooling import KMaxPooling
+
+import pickle
+
 MAX_NUM_WORDS = 380000  # keras Tokenizer keep MAX_NUM_WORDS-1 words and left index 0 for null word
-MAX_SEQUENCE_LENGTH = 200
+MAX_SEQUENCE_LENGTH = 100
 RUNS_IN_FOLD = 5
 NUM_OF_LABEL = 6
 
@@ -162,15 +166,13 @@ def get_model(glove_embedding_lookup_table, fasttext_embedding_lookup_table):
     )(input_layer)
     glove_layer = glove_embedding_layer
     kernel_sizes = [2,3,4]
-    num_filters = 128
+    num_filters = 256
     glove_conv_maxpools = []
     for kernel_size in kernel_sizes:
         conv = Conv1D(filters=num_filters, kernel_size=kernel_size, activation='relu')(glove_layer)
-        bn = BatchNormalization()(conv)
-        maxpool = MaxPooling1D(kernel_size)(bn)
-        conv = Conv1D(filters=num_filters, kernel_size=kernel_size, activation='relu')(maxpool)
-        bn = BatchNormalization()(conv)
-        maxpool = MaxPooling1D(kernel_size)(bn)
+        conv = BatchNormalization()(conv)
+        maxpool = KMaxPooling(5)(conv)
+        # maxpool = MaxPooling1D(pool_size=MAX_SEQUENCE_LENGTH-kernel_size+1)(conv)
         glove_conv_maxpools.append(maxpool)
 
     ## Chanel 2 : fasttext embedding
@@ -182,27 +184,23 @@ def get_model(glove_embedding_lookup_table, fasttext_embedding_lookup_table):
         trainable=False
     )(input_layer)
     fasttext_layer = fasttext_embedding_layer
-    kernel_sizes = [2,3,4]
-    num_filters = 128
+    kernel_sizes = [5,6,7]
+    num_filters = 256
     fasttext_conv_maxpools = []
     for kernel_size in kernel_sizes:
         conv = Conv1D(filters=num_filters, kernel_size=kernel_size, activation='relu')(fasttext_layer)
-        bn = BatchNormalization()(conv)
-        maxpool = MaxPooling1D(3)(bn)
-        conv = Conv1D(filters=num_filters, kernel_size=kernel_size, activation='relu')(maxpool)
-        bn = BatchNormalization()(conv)
-        maxpool = MaxPooling1D(3)(bn)
+        conv = BatchNormalization()(conv)
+        maxpool = MaxPooling1D(pool_size=MAX_SEQUENCE_LENGTH-kernel_size+1)(conv)
         fasttext_conv_maxpools.append(maxpool)
-    '''
 
+    '''
     # merge glove convs and fasttext convs
-    glove_concatenated_tensor = Concatenate(axis=1)(glove_conv_maxpools)
+    layer = Concatenate(axis=1)(glove_conv_maxpools)
     # fasttext_concatenated_tensor = Concatenate(axis=1)(fasttext_conv_maxpools)
     # merge = Merge(mode='max')([glove_concatenated_tensor, fasttext_concatenated_tensor])
     # merge = Concatenate(axis=1)(glove_conv_maxpools + fasttext_conv_maxpools)
-    layer = MaxPooling1D(81)(glove_concatenated_tensor)
     layer = Flatten()(layer)
-    layer = Dropout(0.3)(layer)
+    layer = Dropout(0.5)(layer)
     output_layer = Dense(6, activation='sigmoid')(layer)
     model = Model(inputs=input_layer, outputs=output_layer)
     model.compile(loss='binary_crossentropy', optimizer=Nadam(), metrics=['acc'])
@@ -269,12 +267,12 @@ def run_one_fold(fold):
             st(context=3)
 
         # callbacks
-        es = EarlyStopping(monitor='val_acc', mode='max', patience=4)
+        es = EarlyStopping(monitor='val_acc', mode='max', patience=8)
         bst_model_path = '../data/output/model/{0}fold_{1}run_glove_cnn.h5'.format(fold, run)
         mc = ModelCheckpoint(bst_model_path, save_best_only=True, save_weights_only=True)
         rp = ReduceLROnPlateau(
             monitor='val_acc', mode='max',
-            patience=3,
+            patience=2,
             factor=np.sqrt(0.1),
             verbose=1
         )

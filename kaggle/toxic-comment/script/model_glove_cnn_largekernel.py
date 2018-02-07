@@ -8,12 +8,13 @@ import pandas as pd
 import numpy as np
 from numpy import asarray
 
+from keras.layers.advanced_activations import LeakyReLU
 from keras.preprocessing.text import Tokenizer
 from keras.preprocessing.sequence import pad_sequences
 from keras.layers import Dense
 from keras.layers import Embedding
 from keras.layers import Conv1D, Conv2D, MaxPooling1D, MaxPool2D, Flatten
-from keras.layers import Merge, Concatenate
+from keras.layers import Concatenate, Add
 from keras.layers import Activation
 from keras.regularizers import l2
 from keras.layers import CuDNNGRU
@@ -22,6 +23,7 @@ from keras.layers import Dropout
 from keras.layers import Reshape
 from keras.layers import Bidirectional
 from keras.layers import BatchNormalization
+from keras.layers import Maximum
 
 from keras.models import Model
 from keras.optimizers import RMSprop, Nadam, Adam
@@ -33,13 +35,15 @@ from comm_preprocessing import data_comm_preprocessed_dir
 from comm_preprocessing import COMMENT_COL, ID_COL
 from comm_preprocessing import toxicIndicator_transformers
 
+from attention_layer import Attention
+
 MAX_NUM_WORDS = 380000  # keras Tokenizer keep MAX_NUM_WORDS-1 words and left index 0 for null word
-MAX_SEQUENCE_LENGTH = 200
+MAX_SEQUENCE_LENGTH = 100
 RUNS_IN_FOLD = 5
 NUM_OF_LABEL = 6
 
 EPOCHS = 30
-BATCH_SIZE = 128
+BATCH_SIZE = 64
 
 from ipdb import set_trace as st
 import gc
@@ -120,7 +124,6 @@ def get_embedding_lookup_table(word_index, glove_path, fasttext_path, embedding_
     nb_words = min(MAX_NUM_WORDS, len(word_index))
     # get fasttext word vector
     fasttext_embedding_lookup_table = np.zeros((nb_words, embedding_dim))
-    '''
     fasttext_embedding_index = _get_fasttext_embedding_index(fasttext_path)
     for word, index in word_index.items():
         if index >= MAX_NUM_WORDS:
@@ -132,7 +135,6 @@ def get_embedding_lookup_table(word_index, glove_path, fasttext_path, embedding_
         np.sum(np.sum(fasttext_embedding_lookup_table, axis=1) == 0)))
     del fasttext_embedding_index
     gc.collect()
-    '''
 
     # get glove word vector
     glove_embedding_index = _get_glove_embedding_index(glove_path)
@@ -160,52 +162,45 @@ def get_model(glove_embedding_lookup_table, fasttext_embedding_lookup_table):
         weights=[glove_embedding_lookup_table],
         trainable=False
     )(input_layer)
-    glove_layer = glove_embedding_layer
     embedding_dim = glove_embedding_lookup_table.shape[1]
-    filter_sizes = [2,3,4]
+    filter_sizes = [3,4,5]
     num_filters = 128
-    reshape = Reshape((MAX_SEQUENCE_LENGTH, embedding_dim, 1))(glove_layer)
-    glove_conv_maxpools = []
+    reshape = Reshape((MAX_SEQUENCE_LENGTH, embedding_dim, 1))(glove_embedding_layer)
+    glove_multi_filters = []
     for filter_size in filter_sizes:
         conv = Conv2D(num_filters, kernel_size=(filter_size, embedding_dim), padding='valid',
                     kernel_initializer='normal', activation='relu')(reshape)
         bn = BatchNormalization()(conv)
         maxpool = MaxPool2D(
             pool_size=(MAX_SEQUENCE_LENGTH - filter_size + 1, 1), strides=(1, 1), padding='valid')(bn)
-        glove_conv_maxpools.append(maxpool)
+        glove_multi_filters.append(maxpool)
+    glove_chanel = Concatenate(axis=1)(glove_multi_filters)
 
     ## Chanel 2 : fasttext embedding
-    '''
     fasttext_embedding_layer = Embedding(
         input_dim=fasttext_embedding_lookup_table.shape[0],
         output_dim=fasttext_embedding_lookup_table.shape[1],
         weights=[fasttext_embedding_lookup_table],
         trainable=False
     )(input_layer)
-    fasttext_layer = fasttext_embedding_layer
     embedding_dim = fasttext_embedding_lookup_table.shape[1]
     filter_sizes = [2,3,4]
     num_filters = 128
-    reshape = Reshape((MAX_SEQUENCE_LENGTH, embedding_dim, 1))(fasttext_layer)
-    fasttext_conv_maxpools = []
+    reshape = Reshape((MAX_SEQUENCE_LENGTH, embedding_dim, 1))(fasttext_embedding_layer)
+    fasttext_multi_filters = []
     for filter_size in filter_sizes:
         conv = Conv2D(num_filters, kernel_size=(filter_size, embedding_dim), padding='valid',
-                      kernel_initializer='normal', activation='relu')(reshape)
-        bn = BatchNormalization()(conv)
+                      kernel_initializer='normal', activation='tanh')(reshape)
         maxpool = MaxPool2D(
-            pool_size=(MAX_SEQUENCE_LENGTH - filter_size + 1, 1), strides=(1, 1), padding='valid')(bn)
-        fasttext_conv_maxpools.append(maxpool)
-    '''
+            pool_size=(MAX_SEQUENCE_LENGTH - filter_size + 1, 1), strides=(1, 1), padding='valid')(conv)
+        fasttext_multi_filters.append(maxpool)
+    fasttext_chanel = Concatenate(axis=1)(fasttext_multi_filters)
 
     # merge glove convs and fasttext convs
-    glove_concatenated_tensor = Concatenate(axis=1)(glove_conv_maxpools)
-    fasttext_concatenated_tensor = Concatenate(axis=1)(fasttext_conv_maxpools)
-    # merge = Concatenate(axis=1)(glove_conv_maxpools + fasttext_conv_maxpools)
-    merge = Merge(mode='max')([glove_concatenated_tensor, fasttext_concatenated_tensor])
-    layer = Flatten()(merge)
-    layer = Dropout(0.5)(layer)
-    layer = Dense(256, activation='relu')(layer)
-    layer = Dropout(0.5)(layer)
+    # layer = Maximum()([glove_chanel, fasttext_chanel])
+    layer = Concatenate(axis=1)(fasttext_multi_filters+glove_multi_filters)
+    layer = Flatten()(layer)
+    layer = Dropout(0.6)(layer)
     output_layer = Dense(6, activation='sigmoid')(layer)
     model = Model(inputs=input_layer, outputs=output_layer)
     model.compile(loss='binary_crossentropy', optimizer=Nadam(), metrics=['acc'])
@@ -272,12 +267,12 @@ def run_one_fold(fold):
             st(context=3)
 
         # callbacks
-        es = EarlyStopping(monitor='val_acc', mode='max', patience=4)
+        es = EarlyStopping(monitor='val_acc', mode='max', patience=6)
         bst_model_path = '../data/output/model/{0}fold_{1}run_glove_cnn.h5'.format(fold, run)
         mc = ModelCheckpoint(bst_model_path, save_best_only=True, save_weights_only=True)
         rp = ReduceLROnPlateau(
             monitor='val_acc', mode='max',
-            patience=3,
+            patience=2,
             factor=np.sqrt(0.1),
             verbose=1
         )
