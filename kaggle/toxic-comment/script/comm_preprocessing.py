@@ -18,35 +18,50 @@ ID_COL = 'id'
 data_split_dir = '../data/input/data_split/'
 data_comm_preprocessed_dir = '../data/input/data_comm_preprocessed/'
 
-
 # all the words below are included in glove dictionary
 # combine these toxic indicators with 'CommProcess.revise_triple_and_more_letters'
 toxic_indicator_words = [
     'fuck', 'fucking', 'fucked', 'fuckin', 'fucka', 'fucker', 'fucks', 'fuckers',
+    'fck', 'fcking', 'fcked', 'fckin', 'fcker', 'fcks',
+    'fuk', 'fuking', 'fuked', 'fukin', 'fuker', 'fuks', 'fukers',
+    'fk', 'fking', 'fked', 'fkin', 'fker', 'fks',
     'shit', 'shitty', 'shite',
     'stupid', 'stupids',
     'idiot', 'idiots',
     'suck', 'sucker', 'sucks', 'sucka', 'sucked', 'sucking',
-    'ass', 'asshole',
+    'ass', 'asses', 'asshole', 'assholes', 'ashole', 'asholes',
     'gay', 'gays',
+    'niga', 'nigga', 'nigar', 'niggar', 'niger', 'nigger',
+    'monster', 'monsters',
+    'loser', 'losers',
+    'nazi', 'nazis',
+    'cock', 'cocks', 'cocker', 'cockers',
+    'shun',
+    'faggot','faggy',
+    'oh', 'no', 'aw'
 ]
+
+
 def _get_toxicIndicator_transformers():
     toxicIndicator_transformers = dict()
     for word in toxic_indicator_words:
         tmp_1 = []
         for c in word:
-            if len(tmp_1)>0:
+            if len(tmp_1) > 0:
                 tmp_2 = []
                 for pre in tmp_1:
-                    tmp_2.append(pre+c)
-                    tmp_2.append(pre+c+c)
+                    tmp_2.append(pre + c)
+                    tmp_2.append(pre + c + c)
                 tmp_1 = tmp_2
             else:
                 tmp_1.append(c)
-                tmp_1.append(c+c)
+                tmp_1.append(c + c)
         toxicIndicator_transformers[word] = tmp_1
     return toxicIndicator_transformers
+
+
 toxicIndicator_transformers = _get_toxicIndicator_transformers()
+
 
 # all = 0
 # for k,v in toxicIndicator_transformers.items():
@@ -55,24 +70,13 @@ toxicIndicator_transformers = _get_toxicIndicator_transformers()
 # st(context=21)
 
 class CommProcess(object):
-    @staticmethod
-    def lower(t):
-        return t.lower()
 
     @staticmethod
-    def remove_stopwords(t):
-        return ' '.join([w for w in t.split() if not w in stops])
-
-    @staticmethod
-    def remove_special_chars(t):
-        return special_character_removal.sub('', t)
-
-    @staticmethod
-    def replace_all_numeric(t):
-        return replace_numbers.sub('n', t)
-
-    @staticmethod
-    def clean_abbreviation(t):
+    def clean_text(t):
+        t = re.sub(r"[^A-Za-z0-9,!.\/'?]", " ", t)
+        t = replace_numbers.sub(" ", t)
+        t = t.lower()
+        t = re.sub(r"what's", "what is ", t)
         t = re.sub(r"\'s", " ", t)
         t = re.sub(r"\'ve", " have ", t)
         t = re.sub(r"can't", "cannot ", t)
@@ -81,26 +85,43 @@ class CommProcess(object):
         t = re.sub(r"\'re", " are ", t)
         t = re.sub(r"\'d", " would ", t)
         t = re.sub(r"\'ll", " will ", t)
+        t = re.sub(r",", " ", t)
+        t = re.sub(r"\.", " ", t)
+        t = re.sub(r"!", " ! ", t)
+        t = re.sub(r"\?", " ? ", t)
+        t = re.sub(r"\/", " ", t)
+        t = re.sub(r"'", " ", t)
+        t = re.sub(r" e g ", " eg ", t)
+        t = re.sub(r" b g ", " bg ", t)
+        t = re.sub(r" u s ", " american ", t)
         return t
+        # return special_character_removal.sub('', t)
+
+    @staticmethod
+    def remove_stopwords(t):
+        return ' '.join([w for w in t.split() if not w in stops])
 
     @staticmethod
     def revise_triple_and_more_letters(t):
         for letter in 'abcdefghijklmnopqrstuvwxyz':
-            reg = letter+"{2,}"
-            t = re.sub(reg, letter+letter, t)
+            reg = letter + "{2,}"
+            t = re.sub(reg, letter + letter, t)
+        return t
+
+    @staticmethod
+    def fill_na(t):
+        if t=='':
+            return 'NA'
         return t
 
 
 def execute_comm_process(df):
     comm_process_pipeline = [
+        CommProcess.clean_text,
         CommProcess.remove_stopwords,
-        CommProcess.clean_abbreviation,
-        CommProcess.remove_special_chars,
-        CommProcess.replace_all_numeric,
-        CommProcess.lower,
         CommProcess.revise_triple_and_more_letters,
+        CommProcess.fill_na,
     ]
-    df[COMMENT_COL].fillna('NA', inplace=True)
     for cp in comm_process_pipeline:
         df[COMMENT_COL] = df[COMMENT_COL].apply(cp)
     return df
@@ -124,9 +145,9 @@ if __name__ == '__main__':
     print('Comm processing whole train data')
     df_train = pd.read_csv('../data/input/train.csv')
     df_train = execute_comm_process(df_train)
-    df_train.to_csv(data_comm_preprocessed_dir+'train.csv', index=False)
+    df_train.to_csv(data_comm_preprocessed_dir + 'train.csv', index=False)
     # Process test data
     print('Comm processing test data')
     df_test = pd.read_csv('../data/input/test.csv')
     df_test = execute_comm_process(df_test)
-    df_test.to_csv(data_comm_preprocessed_dir+'test.csv', index=False)
+    df_test.to_csv(data_comm_preprocessed_dir + 'test.csv', index=False)

@@ -31,7 +31,8 @@ from comm_preprocessing import toxicIndicator_transformers
 
 from attention_layer import Attention
 
-MAX_NUM_WORDS = 380000  # keras Tokenizer keep MAX_NUM_WORDS-1 words and left index 0 for null word
+# MAX_NUM_WORDS = 380000  # keras Tokenizer keep MAX_NUM_WORDS-1 words and left index 0 for null word
+MAX_NUM_WORDS = 284670  # keras Tokenizer keep MAX_NUM_WORDS-1 words and left index 0 for null word
 MAX_SEQUENCE_LENGTH = 200
 RUNS_IN_FOLD = 5
 NUM_OF_LABEL = 6
@@ -127,10 +128,9 @@ def get_model(embedding_lookup_table):
     # units_1 = np.random.randint(60, 150)
     # units_2 = np.random.randint(60, 150)
     # dropout = 0.4 + np.random.rand() * 0.2
-    layer = Bidirectional(CuDNNGRU(units=128, return_sequences=True))(layer)
+    layer = Bidirectional(CuDNNGRU(units=64, return_sequences=True))(layer)
     layer = Dropout(0.5)(layer)
-    layer = Attention(MAX_SEQUENCE_LENGTH)(layer)
-    layer = Dense(256, activation='relu')(layer)
+    layer = Bidirectional(CuDNNGRU(units=64, return_sequences=False))(layer)
     output_layer = Dense(6, activation='sigmoid')(layer)
     model = Model(inputs=input_layer, outputs=output_layer)
     model.compile(loss='binary_crossentropy', optimizer='rmsprop', metrics=['acc'])
@@ -169,15 +169,15 @@ def run_one_fold(fold):
     df_trn, df_val = read_data_in_fold(fold)
 
     # prepare data
-    X_test = get_padded_sequence(tokenizer, df_test[COMMENT_COL].values.tolist())
+    X_test = get_padded_sequence(tokenizer, df_test[COMMENT_COL].astype('str').values.tolist())
     id_test = df_test[ID_COL].values.tolist()
     print('Test data shape {0}'.format(X_test.shape))
 
-    X_trn = get_padded_sequence(tokenizer, df_trn[COMMENT_COL].values.tolist())
+    X_trn = get_padded_sequence(tokenizer, df_trn[COMMENT_COL].astype('str').values.tolist())
     y_trn = df_trn[label_candidates].values
     print('Fold {0} train data shape {1} '.format(fold, X_trn.shape))
 
-    X_val = get_padded_sequence(tokenizer, df_val[COMMENT_COL].values.tolist())
+    X_val = get_padded_sequence(tokenizer, df_val[COMMENT_COL].astype('str').values.tolist())
     y_val = df_val[label_candidates].values
     id_val = df_val[ID_COL].values.tolist()
     print('Fold {0} valid data shape {1} '.format(fold, X_val.shape))

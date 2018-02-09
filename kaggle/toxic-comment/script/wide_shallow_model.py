@@ -30,7 +30,6 @@ testDF.ix[testDF['question2'].isnull(),['question2']] = 'random empty question'
 ###################################################
 
 max_features = np.random.randint(275000, 325000)
-min_df = np.random.randint(40, 60)
 ngram_range = (1, np.random.randint(8, 13))
 C = 0.05 + 0.1 * np.random.random()
 
