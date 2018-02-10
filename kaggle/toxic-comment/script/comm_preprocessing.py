@@ -18,6 +18,7 @@ ID_COL = 'id'
 data_split_dir = '../data/input/data_split/'
 data_comm_preprocessed_dir = '../data/input/data_comm_preprocessed/'
 
+
 # all the words below are included in glove dictionary
 # combine these toxic indicators with 'CommProcess.revise_triple_and_more_letters'
 toxic_indicator_words = [
@@ -29,7 +30,7 @@ toxic_indicator_words = [
     'stupid', 'stupids',
     'idiot', 'idiots',
     'suck', 'sucker', 'sucks', 'sucka', 'sucked', 'sucking',
-    'ass', 'asses', 'asshole', 'assholes', 'ashole', 'asholes',
+    'ass', 'asses', 'asshole', 'assholes', 'ashole', 'ahole', 'asholes',
     'gay', 'gays',
     'niga', 'nigga', 'nigar', 'niggar', 'niger', 'nigger',
     'monster', 'monsters',
@@ -38,7 +39,13 @@ toxic_indicator_words = [
     'cock', 'cocks', 'cocker', 'cockers',
     'shun',
     'faggot','faggy',
-    'oh', 'no', 'aw'
+    'oh', 'no', 'aw',
+    'mofucka',
+    'penis', 'penises',
+    'vagina',
+    'ugly',
+    'fool',
+    'pig',
 ]
 
 

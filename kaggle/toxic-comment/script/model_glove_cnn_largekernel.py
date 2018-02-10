@@ -38,7 +38,7 @@ from comm_preprocessing import toxicIndicator_transformers
 from attention_layer import Attention
 
 MAX_NUM_WORDS = 284670  # keras Tokenizer keep MAX_NUM_WORDS-1 words and left index 0 for null word
-MAX_SEQUENCE_LENGTH = 100
+MAX_SEQUENCE_LENGTH = 200
 RUNS_IN_FOLD = 5
 NUM_OF_LABEL = 6
 
@@ -201,7 +201,8 @@ def get_model(glove_embedding_lookup_table, fasttext_embedding_lookup_table):
     layer = Concatenate(axis=1)(fasttext_multi_filters+glove_multi_filters)
     layer = BatchNormalization()(layer)
     layer = Flatten()(layer)
-    layer = Dropout(0.5)(layer)
+    # dropout = 0.4 + np.random.rand() * 0.2
+    layer = Dropout(0.6)(layer)
     output_layer = Dense(6, activation='sigmoid')(layer)
     model = Model(inputs=input_layer, outputs=output_layer)
     model.compile(loss='binary_crossentropy', optimizer=Nadam(), metrics=['acc'])

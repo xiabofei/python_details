@@ -4,7 +4,7 @@ from data_split import K,label_candidates
 from comm_preprocessing import ID_COL
 import pandas as pd
 
-submit0 = '../data/output/preds/glove_gru/avg_submit_98928.csv'
+submit0 = '../data/output/preds/glove_gru/avg_submit_98957.csv'
 submit1 = '../data/output/preds/glove_fasttext_cnn/avg_submit_98711.csv'
 # submit2 = '../data/output/preds/fasttext_gru/avg_submit_9883.csv'
 candidates = [submit0, submit1]

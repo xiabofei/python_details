@@ -69,7 +69,9 @@ def read_train_data():
 def get_fitted_tokenizer(df_train, df_test):
     comments_train = df_train[COMMENT_COL].values.tolist()
     comments_test = df_test[COMMENT_COL].values.tolist()
-    tokenizer = Tokenizer()
+    # remain '!' and '?'
+    tokenizer = Tokenizer(filters='"#$%&()*+,-./:;<=>@[\\]^_`{|}~\t\n')
+    # tokenizer = Tokenizer()
     # tokenizer.num_words = MAX_NUM_WORDS
     tokenizer.fit_on_texts(comments_train + comments_test)
     return tokenizer
@@ -126,14 +128,15 @@ def get_model(embedding_lookup_table):
     layer = embedding_layer
     # hyper-parameter vibration
     # units_1 = np.random.randint(60, 150)
-    # units_2 = np.random.randint(60, 150)
-    # dropout = 0.4 + np.random.rand() * 0.2
-    layer = Bidirectional(CuDNNGRU(units=64, return_sequences=True))(layer)
-    layer = Dropout(0.5)(layer)
-    layer = Bidirectional(CuDNNGRU(units=64, return_sequences=False))(layer)
+    units = np.random.randint(60, 70)
+    dropout = 0.348 + np.random.rand() * 0.01
+    layer = Bidirectional(CuDNNGRU(units=units, return_sequences=True))(layer)
+    layer = Dropout(dropout)(layer)
+    layer = Bidirectional(CuDNNGRU(units=units, return_sequences=False))(layer)
     output_layer = Dense(6, activation='sigmoid')(layer)
     model = Model(inputs=input_layer, outputs=output_layer)
-    model.compile(loss='binary_crossentropy', optimizer='rmsprop', metrics=['acc'])
+    # model.compile(loss='binary_crossentropy', optimizer='rmsprop', metrics=['acc'])
+    model.compile(loss='binary_crossentropy', optimizer=Nadam(), metrics=['acc'])
     return model
 
 
