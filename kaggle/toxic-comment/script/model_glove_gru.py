@@ -32,9 +32,10 @@ from comm_preprocessing import toxicIndicator_transformers
 from attention_layer import Attention
 
 # MAX_NUM_WORDS = 380000  # keras Tokenizer keep MAX_NUM_WORDS-1 words and left index 0 for null word
-MAX_NUM_WORDS = 284670  # keras Tokenizer keep MAX_NUM_WORDS-1 words and left index 0 for null word
+# MAX_NUM_WORDS = 284670  # keras Tokenizer keep MAX_NUM_WORDS-1 words and left index 0 for null word
+MAX_NUM_WORDS = 284537  # keras Tokenizer keep MAX_NUM_WORDS-1 words and left index 0 for null word
 MAX_SEQUENCE_LENGTH = 200
-RUNS_IN_FOLD = 5
+RUNS_IN_FOLD = 15
 NUM_OF_LABEL = 6
 
 EPOCHS = 30
@@ -103,6 +104,8 @@ def get_embedding_lookup_table(word_index, glove_path, embedding_dim):
     # get glove word vector
     glove_embedding_index = _get_glove_embedding_index(glove_path)
     nb_words = min(MAX_NUM_WORDS, len(word_index))
+    print('! index : {0}'.format(word_index['!']))
+    print('? index : {0}'.format(word_index['?']))
     # get embedding lookup table
     embedding_lookup_table = np.zeros((nb_words, embedding_dim))
     for word, index in word_index.items():
@@ -117,7 +120,7 @@ def get_embedding_lookup_table(word_index, glove_path, embedding_dim):
     return embedding_lookup_table
 
 
-def get_model(embedding_lookup_table):
+def get_model(embedding_lookup_table, dropout):
     input_layer = Input(shape=(MAX_SEQUENCE_LENGTH,), dtype='int32')
     embedding_layer = Embedding(
         input_dim=embedding_lookup_table.shape[0],
@@ -128,11 +131,11 @@ def get_model(embedding_lookup_table):
     layer = embedding_layer
     # hyper-parameter vibration
     # units_1 = np.random.randint(60, 150)
-    units = np.random.randint(60, 70)
-    dropout = 0.348 + np.random.rand() * 0.01
-    layer = Bidirectional(CuDNNGRU(units=units, return_sequences=True))(layer)
+    dropout = dropout - 0.005 + np.random.rand() * 0.01
+    print('dropout : {0}'.format(dropout))
+    layer = Bidirectional(CuDNNGRU(units=64, return_sequences=True))(layer)
     layer = Dropout(dropout)(layer)
-    layer = Bidirectional(CuDNNGRU(units=units, return_sequences=False))(layer)
+    layer = Bidirectional(CuDNNGRU(units=64, return_sequences=False))(layer)
     output_layer = Dense(6, activation='sigmoid')(layer)
     model = Model(inputs=input_layer, outputs=output_layer)
     # model.compile(loss='binary_crossentropy', optimizer='rmsprop', metrics=['acc'])
@@ -194,7 +197,7 @@ def run_one_fold(fold):
         print('\nFold {0} run {1} begin'.format(fold, run))
 
         # model
-        model = get_model(embedding_lookup_table)
+        model = get_model(embedding_lookup_table, float(FLAGS.dp))
         # print(model.summary())
 
         # callbacks
@@ -231,7 +234,7 @@ def run_one_fold(fold):
     for idx, label in enumerate(label_candidates):
         df_preds_test[label] = preds_test[idx]
     # df_preds_test.to_csv('../data/output/preds/fasttext_gru/{0}fold_test.csv'.format(fold), index=False)
-    df_preds_test.to_csv('../data/output/preds/glove_gru/{0}fold_test.csv'.format(fold), index=False)
+    df_preds_test.to_csv('../data/output/preds/glove_gru/{0}/{1}fold_test.csv'.format(FLAGS.dp, fold), index=False)
 
     preds_valid = preds_valid.T
     df_preds_val = pd.DataFrame()
@@ -239,11 +242,12 @@ def run_one_fold(fold):
     for idx, label in enumerate(label_candidates):
         df_preds_val[label] = preds_valid[idx]
     # df_preds_val.to_csv('../data/output/preds/fasttext_gru/{0}fold_valid.csv'.format(fold), index=False)
-    df_preds_val.to_csv('../data/output/preds/glove_gru/{0}fold_valid.csv'.format(fold), index=False)
+    df_preds_val.to_csv('../data/output/preds/glove_gru/{0}/{1}fold_valid.csv'.format(FLAGS.dp, fold), index=False)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--fold', type=str, default='0', help='train on which fold')
+    parser.add_argument('--dp', type=str, default='0.35', help='dropout')
     FLAGS, _ = parser.parse_known_args()
     np.random.seed(int(FLAGS.fold))
     run_one_fold(FLAGS.fold)
