@@ -31,47 +31,6 @@ redundancy_rightFormat = {
 }
 redundancy = set(redundancy_rightFormat.keys())
 
-# * mask toxic words // transform to its original format
-asterisk_mask = {
-    'fuckin': [ 'f**in', 'f***in', 'fuc**n', 'f****n',],
-    'fucker': [ 'f***ers', 'f***er', 'f****er',],
-    'fucked': [ 'f***ed', 'f**ed', 'f****d',],
-    'fuckhead': ['f**khead', '****head', 'headf**k',],
-    'fucking': ['fu**ing',],
-    'motherfuck': [
-        'm*****f*****','mutha******', 'mutha*******','motherf******', 'mother******',
-        'mother****er', 'mother****ers', 'motherf***in', 'moderf***n', 'motherf**ker',
-        'mother******s', 'mot**rfu*kers', 'motherf**king','motherf**kers',
-    ],
-    'goddamnit': ['***damnit', ],
-    'goddamn': ['g**damn',],
-    'damn': ['d**n', ],
-    'dumb': ['d**b', ],
-    'dicks': ['d***s', 'd**ks',],
-    'dick': ['d**k', ],
-    'pussy': ['pu***', ],
-    'shit': [ 's**t', 'sh**', 's***t',],
-    'shithead': ['s**thead'],
-    'bullshit': [ 'bull****','bulls***','b***s***', 'bulls**t', ],
-    'horseshit': ['horsesh**', ],
-    'cunt': ['c**t', ],
-    'bitch': ['bi***', 'bit**', 'b**ch', 'b**ch', 'bi*ch', 'b***h', 'b****s', 'b****es', ],
-    'asshole': ['as**ole', 'a**h**e', '****holes', '***holes',],
-    'jackass': ['jack***', ],
-    'sucks': [ 'su**s', 's**ks', 's*cks',],
-    'cocksucker': ['co**sucker', ],
-    'cocksuckers': ['****suckers', ],
-    'bastard': [ 'b**stard', 'b**terd',],
-    'niggers': ['ni**ers', 'n***ers', ],
-    'niggar': ['nig**', ],
-    'hell': ['he**'],
-}
-
-mask_origin = dict()
-for origin, mask_candidates in asterisk_mask.items():
-    for mask in set(mask_candidates):
-        mask_origin[mask] = origin
-masks = set(mask_origin.keys())
 # all the words below are included in glove dictionary
 # combine these toxic indicators with 'CommProcess.revise_triple_and_more_letters'
 toxic_indicator_words = [
@@ -126,7 +85,8 @@ toxicIndicator_transformers = _get_toxicIndicator_transformers()
 class CommProcess(object):
     @staticmethod
     def clean_text(t):
-        t = re.sub(r"[^A-Za-z0-9,*!?.\/']", " ", t)
+        t = re.sub(r"[^A-Za-z0-9,!?.\/']", " ", t)
+        t = re.sub(r"\*", "", t)
         t = replace_numbers.sub(" ", t)
         t = t.lower()
         t = re.sub(r"what's", "what is ", t)
@@ -172,27 +132,17 @@ class CommProcess(object):
         return ' '.join(ret)
 
     @staticmethod
-    def revise_mask_words(t):
-        ret = []
-        for word in t.split():
-            if word in masks:
-                ret.append(mask_origin[word])
-            else:
-                ret.append(word)
-        ret = re.sub(r"\*", " ", ' '.join(ret))
-        return ret
-
-    @staticmethod
     def fill_na(t):
         if t.strip() == '':
             return 'NA'
+        # t = re.sub(r"\*", "", t)
+        # t = re.sub(r'\s+', ' ', t)
         return t
 
 
 def execute_comm_process(df):
     comm_process_pipeline = [
         CommProcess.clean_text,
-        CommProcess.revise_mask_words,
         CommProcess.remove_stopwords,
         CommProcess.revise_triple_and_more_letters,
         CommProcess.revise_redundancy_words,

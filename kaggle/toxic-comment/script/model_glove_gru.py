@@ -32,10 +32,10 @@ from comm_preprocessing import toxicIndicator_transformers
 from attention_layer import Attention
 
 # MAX_NUM_WORDS = 380000  # keras Tokenizer keep MAX_NUM_WORDS-1 words and left index 0 for null word
-# MAX_NUM_WORDS = 284670  # keras Tokenizer keep MAX_NUM_WORDS-1 words and left index 0 for null word
-MAX_NUM_WORDS = 284537  # keras Tokenizer keep MAX_NUM_WORDS-1 words and left index 0 for null word
+MAX_NUM_WORDS = 284670  # keras Tokenizer keep MAX_NUM_WORDS-1 words and left index 0 for null word
+# MAX_NUM_WORDS = 284537  # keras Tokenizer keep MAX_NUM_WORDS-1 words and left index 0 for null word
 MAX_SEQUENCE_LENGTH = 200
-RUNS_IN_FOLD = 15
+RUNS_IN_FOLD = 5
 NUM_OF_LABEL = 6
 
 EPOCHS = 30
@@ -71,8 +71,8 @@ def get_fitted_tokenizer(df_train, df_test):
     comments_train = df_train[COMMENT_COL].values.tolist()
     comments_test = df_test[COMMENT_COL].values.tolist()
     # remain '!' and '?'
-    tokenizer = Tokenizer(filters='"#$%&()*+,-./:;<=>@[\\]^_`{|}~\t\n')
-    # tokenizer = Tokenizer()
+    # tokenizer = Tokenizer(filters='"#$%&()*+,-./:;<=>@[\\]^_`{|}~\t\n')
+    tokenizer = Tokenizer()
     # tokenizer.num_words = MAX_NUM_WORDS
     tokenizer.fit_on_texts(comments_train + comments_test)
     return tokenizer
@@ -104,8 +104,8 @@ def get_embedding_lookup_table(word_index, glove_path, embedding_dim):
     # get glove word vector
     glove_embedding_index = _get_glove_embedding_index(glove_path)
     nb_words = min(MAX_NUM_WORDS, len(word_index))
-    print('! index : {0}'.format(word_index['!']))
-    print('? index : {0}'.format(word_index['?']))
+    # print('! index : {0}'.format(word_index['!']))
+    # print('? index : {0}'.format(word_index['?']))
     # get embedding lookup table
     embedding_lookup_table = np.zeros((nb_words, embedding_dim))
     for word, index in word_index.items():
@@ -131,7 +131,7 @@ def get_model(embedding_lookup_table, dropout):
     layer = embedding_layer
     # hyper-parameter vibration
     # units_1 = np.random.randint(60, 150)
-    dropout = dropout - 0.005 + np.random.rand() * 0.01
+    dropout = dropout - 0.002 + np.random.rand() * 0.01
     print('dropout : {0}'.format(dropout))
     layer = Bidirectional(CuDNNGRU(units=64, return_sequences=True))(layer)
     layer = Dropout(dropout)(layer)

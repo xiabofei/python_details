@@ -16,7 +16,7 @@ stops = set(stopwords.words("english"))
 COMMENT_COL = 'comment_text'
 ID_COL = 'id'
 data_split_dir = '../data/input/data_split/'
-data_comm_preprocessed_dir = '../data/input/data_comm_preprocessed/'
+data_comm_preprocessed_heavy_dir = '../data/input/data_comm_preprocessed_heavy/'
 
 # redundancy words and their right formats
 redundancy_rightFormat = {
@@ -33,35 +33,64 @@ redundancy = set(redundancy_rightFormat.keys())
 
 # * mask toxic words // transform to its original format
 asterisk_mask = {
-    'fuckin': [ 'f**in', 'f***in', 'fuc**n', 'f****n',],
-    'fucker': [ 'f***ers', 'f***er', 'f****er',],
-    'fucked': [ 'f***ed', 'f**ed', 'f****d',],
-    'fuckhead': ['f**khead', '****head', 'headf**k',],
-    'fucking': ['fu**ing',],
+    'fuck': [
+        'f**k', 'f***s', 'fu**','fu***', 'f*****k','f**ks', 'f**ck', 'f**kker',
+    ],
+    'fuckin': [
+        'f**kin','f**in', 'f***in', 'fuc**n', 'f****n',
+    ],
+    'fucker': [
+        'f***ers', 'f***er', 'f****er', 'f**ker','f**kers',
+    ],
+    'fucked': [
+        'f***ed', 'f**ed', 'f****d','f**ked',
+    ],
+    'fuckhead': [
+        'f**khead', '****head', 'headf**k',
+    ],
+    'fucking': [
+        'fu**ing', 'f***ing', 'f**cking', 'f**king','f****ng', 'f**ng', 'f*****g','f******g', 'fu*****'
+    ],
     'motherfuck': [
         'm*****f*****','mutha******', 'mutha*******','motherf******', 'mother******',
         'mother****er', 'mother****ers', 'motherf***in', 'moderf***n', 'motherf**ker',
-        'mother******s', 'mot**rfu*kers', 'motherf**king','motherf**kers',
+        'mother******s', 'mot**rfu*kers', 'mutha***a', 'motherf**king','motherf**kers',
     ],
     'goddamnit': ['***damnit', ],
     'goddamn': ['g**damn',],
     'damn': ['d**n', ],
     'dumb': ['d**b', ],
     'dicks': ['d***s', 'd**ks',],
-    'dick': ['d**k', ],
+    'dick': ['d***', 'd**k', ],
     'pussy': ['pu***', ],
-    'shit': [ 's**t', 'sh**', 's***t',],
+    'shit': [
+        's**t', 'sh**', 's***t',
+    ],
     'shithead': ['s**thead'],
-    'bullshit': [ 'bull****','bulls***','b***s***', 'bulls**t', ],
+    'bullshit': [
+        'bull****','bulls***','b***s***', 'bulls**t',
+    ],
     'horseshit': ['horsesh**', ],
     'cunt': ['c**t', ],
-    'bitch': ['bi***', 'bit**', 'b**ch', 'b**ch', 'bi*ch', 'b***h', 'b****s', 'b****es', ],
-    'asshole': ['as**ole', 'a**h**e', '****holes', '***holes',],
+    'bitch': [
+        'bi***', 'bit**',
+        'b**ch', 'b**ch',  'bi*ch', 'b***h', 'b****s',
+        'b****es',
+    ],
+    'asshole': [
+        'a**hole', 'a**holes', 'as**ole', 'a**h**e', 'a*****e', '****holes', '***holes',
+    ],
+    'shithole': ['shit**oles',],
+    'ass': ['a**', ],
     'jackass': ['jack***', ],
-    'sucks': [ 'su**s', 's**ks', 's*cks',],
+    'sucks': [
+        'su**s', 's**ks', 's*cks',
+    ],
     'cocksucker': ['co**sucker', ],
     'cocksuckers': ['****suckers', ],
-    'bastard': [ 'b**stard', 'b**terd',],
+    'bastard': [
+        'b******d', 'b**stard', 'b**terd',
+    ],
     'niggers': ['ni**ers', 'n***ers', ],
     'niggar': ['nig**', ],
     'hell': ['he**'],
@@ -72,6 +101,8 @@ for origin, mask_candidates in asterisk_mask.items():
     for mask in set(mask_candidates):
         mask_origin[mask] = origin
 masks = set(mask_origin.keys())
+
+
 # all the words below are included in glove dictionary
 # combine these toxic indicators with 'CommProcess.revise_triple_and_more_letters'
 toxic_indicator_words = [
@@ -79,22 +110,24 @@ toxic_indicator_words = [
     'fck', 'fcking', 'fcked', 'fckin', 'fcker', 'fcks',
     'fuk', 'fuking', 'fuked', 'fukin', 'fuker', 'fuks', 'fukers',
     'fk', 'fking', 'fked', 'fkin', 'fker', 'fks',
-    'shit', 'shitty', 'shite',
+    'shit', 'shitty', 'shite', 'bullshit',
     'stupid', 'stupids',
     'idiot', 'idiots',
-    'suck', 'sucker', 'sucks', 'sucka', 'sucked', 'sucking',
-    'ass', 'asses', 'asshole', 'assholes', 'ashole', 'asholes',
-    'gay', 'gays',
-    'niga', 'nigga', 'nigar', 'niggar', 'niger', 'nigger',
-    'monster', 'monsters',
-    'loser', 'losers',
-    'nazi', 'nazis',
-    'cock', 'cocks', 'cocker', 'cockers',
-    'shun',
-    'faggot', 'faggy',
-    'oh', 'no', 'aw'
+    'suck', 'sucker', 'sucks', 'suk', 'suks', 'sucka', 'sucked', 'sucking',
+    'ass', 'asses', 'asshole', 'assholes', 'ashole', 'ahole', 'asholes', 'arsehole',
+    'gay', 'gays', 'whore', 'hore', 'way',
+    'niga', 'nigga', 'niggas', 'nigar', 'niggar', 'niger', 'nigger', 'niggaz',
+    'monster', 'monsters', 'burn', 'burned', 'mush',
+    'loser', 'losers', 'nazi', 'nazis',
+    'cock', 'cocks', 'cocker', 'cockers', 'dick', 'dik',
+    'shun', 'faggot', 'fag', 'faggy', 'oh', 'no', 'aw', 'wah', 'ha', 'sh', 'ah', 'uh', 'wo', 'er',
+    'mofucka', 'penis', 'penises',
+    'vagina', 'cunt', 'cunts',
+    'ugly', 'fool', 'pig', 'yay', 'rape', 'raped',
+    'moron', 'kill', 'killed', 'garbage', 'bald', 'balding',
+    'you', 'erase', 'stop', 'nerd', 'blah', 'prick', 'ball', 'growl', 'growls', 'smelly',
+    'vandal', 'so', 'over', 'purger', 'pussy', 'damn',
 ]
-
 
 def _get_toxicIndicator_transformers():
     toxicIndicator_transformers = dict()
@@ -113,9 +146,13 @@ def _get_toxicIndicator_transformers():
         toxicIndicator_transformers[word] = tmp_1
     return toxicIndicator_transformers
 
-
 toxicIndicator_transformers = _get_toxicIndicator_transformers()
 
+transform_origin = dict()
+for origin, toxic_words in toxicIndicator_transformers.items():
+    for toxic in toxic_words:
+        transform_origin[toxic] = origin
+toxic_transforms = set(transform_origin.keys())
 
 # all = 0
 # for k,v in toxicIndicator_transformers.items():
@@ -144,9 +181,6 @@ class CommProcess(object):
         t = re.sub(r"\?", " ? ", t)
         t = re.sub(r"\/", " ", t)
         t = re.sub(r"'", " ", t)
-        t = re.sub(r" e g ", " eg ", t)
-        t = re.sub(r" b g ", " bg ", t)
-        t = re.sub(r" u s ", " american ", t)
         return t
 
     @staticmethod
@@ -159,6 +193,15 @@ class CommProcess(object):
             reg = letter + "{2,}"
             t = re.sub(reg, letter + letter, t)
         return t
+
+    @staticmethod
+    def normalize_toxic_word(t):
+        ret = []
+        for word in t.split():
+            if word in toxic_transforms:
+                word = transform_origin[word]
+            ret.append(word)
+        return ' '.join(ret)
 
     @staticmethod
     def revise_redundancy_words(t):
@@ -184,7 +227,7 @@ class CommProcess(object):
 
     @staticmethod
     def fill_na(t):
-        if t.strip() == '':
+        if t == '':
             return 'NA'
         return t
 
@@ -192,10 +235,11 @@ class CommProcess(object):
 def execute_comm_process(df):
     comm_process_pipeline = [
         CommProcess.clean_text,
-        CommProcess.revise_mask_words,
         CommProcess.remove_stopwords,
         CommProcess.revise_triple_and_more_letters,
+        CommProcess.normalize_toxic_word,
         CommProcess.revise_redundancy_words,
+        CommProcess.revise_mask_words,
         CommProcess.fill_na,
     ]
     for cp in comm_process_pipeline:
@@ -215,15 +259,15 @@ if __name__ == '__main__':
         # comm processing
         df_trn = execute_comm_process(df_trn)
         df_val = execute_comm_process(df_val)
-        df_trn.to_csv(data_comm_preprocessed_dir + '{0}_train.csv'.format(k), index=False)
-        df_val.to_csv(data_comm_preprocessed_dir + '{0}_valid.csv'.format(k), index=False)
+        df_trn.to_csv(data_comm_preprocessed_heavy_dir + '{0}_train.csv'.format(k), index=False)
+        df_val.to_csv(data_comm_preprocessed_heavy_dir + '{0}_valid.csv'.format(k), index=False)
     # Process whole train data
     print('Comm processing whole train data')
     df_train = pd.read_csv('../data/input/train.csv')
     df_train = execute_comm_process(df_train)
-    df_train.to_csv(data_comm_preprocessed_dir + 'train.csv', index=False)
+    df_train.to_csv(data_comm_preprocessed_heavy_dir + 'train.csv', index=False)
     # Process test data
     print('Comm processing test data')
     df_test = pd.read_csv('../data/input/test.csv')
     df_test = execute_comm_process(df_test)
-    df_test.to_csv(data_comm_preprocessed_dir + 'test.csv', index=False)
+    df_test.to_csv(data_comm_preprocessed_heavy_dir + 'test.csv', index=False)

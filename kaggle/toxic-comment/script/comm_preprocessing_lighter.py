@@ -12,6 +12,8 @@ special_character_removal = re.compile(r'[^a-z\d ]', re.IGNORECASE)
 replace_numbers = re.compile(r'\d+', re.IGNORECASE)
 # stopwords
 stops = set(stopwords.words("english"))
+stops.discard('you')
+print('{0}'.format('you' in stops))
 
 COMMENT_COL = 'comment_text'
 ID_COL = 'id'
@@ -31,47 +33,6 @@ redundancy_rightFormat = {
 }
 redundancy = set(redundancy_rightFormat.keys())
 
-# * mask toxic words // transform to its original format
-asterisk_mask = {
-    'fuckin': [ 'f**in', 'f***in', 'fuc**n', 'f****n',],
-    'fucker': [ 'f***ers', 'f***er', 'f****er',],
-    'fucked': [ 'f***ed', 'f**ed', 'f****d',],
-    'fuckhead': ['f**khead', '****head', 'headf**k',],
-    'fucking': ['fu**ing',],
-    'motherfuck': [
-        'm*****f*****','mutha******', 'mutha*******','motherf******', 'mother******',
-        'mother****er', 'mother****ers', 'motherf***in', 'moderf***n', 'motherf**ker',
-        'mother******s', 'mot**rfu*kers', 'motherf**king','motherf**kers',
-    ],
-    'goddamnit': ['***damnit', ],
-    'goddamn': ['g**damn',],
-    'damn': ['d**n', ],
-    'dumb': ['d**b', ],
-    'dicks': ['d***s', 'd**ks',],
-    'dick': ['d**k', ],
-    'pussy': ['pu***', ],
-    'shit': [ 's**t', 'sh**', 's***t',],
-    'shithead': ['s**thead'],
-    'bullshit': [ 'bull****','bulls***','b***s***', 'bulls**t', ],
-    'horseshit': ['horsesh**', ],
-    'cunt': ['c**t', ],
-    'bitch': ['bi***', 'bit**', 'b**ch', 'b**ch', 'bi*ch', 'b***h', 'b****s', 'b****es', ],
-    'asshole': ['as**ole', 'a**h**e', '****holes', '***holes',],
-    'jackass': ['jack***', ],
-    'sucks': [ 'su**s', 's**ks', 's*cks',],
-    'cocksucker': ['co**sucker', ],
-    'cocksuckers': ['****suckers', ],
-    'bastard': [ 'b**stard', 'b**terd',],
-    'niggers': ['ni**ers', 'n***ers', ],
-    'niggar': ['nig**', ],
-    'hell': ['he**'],
-}
-
-mask_origin = dict()
-for origin, mask_candidates in asterisk_mask.items():
-    for mask in set(mask_candidates):
-        mask_origin[mask] = origin
-masks = set(mask_origin.keys())
 # all the words below are included in glove dictionary
 # combine these toxic indicators with 'CommProcess.revise_triple_and_more_letters'
 toxic_indicator_words = [
@@ -90,10 +51,9 @@ toxic_indicator_words = [
     'loser', 'losers',
     'nazi', 'nazis',
     'cock', 'cocks', 'cocker', 'cockers',
-    'shun',
     'faggot', 'faggy',
-    'oh', 'no', 'aw'
 ]
+toxic_indicator_words_sets = set(toxic_indicator_words)
 
 
 def _get_toxicIndicator_transformers():
@@ -113,45 +73,36 @@ def _get_toxicIndicator_transformers():
         toxicIndicator_transformers[word] = tmp_1
     return toxicIndicator_transformers
 
-
 toxicIndicator_transformers = _get_toxicIndicator_transformers()
 
-
-# all = 0
-# for k,v in toxicIndicator_transformers.items():
-#     all += len(v) - 1
-# print(all)
-# st(context=21)
 
 class CommProcess(object):
     @staticmethod
     def clean_text(t):
-        t = re.sub(r"[^A-Za-z0-9,*!?.\/']", " ", t)
+        t = re.sub(r"[^A-Za-z0-9,!?*.\/']", " ", t)
         t = replace_numbers.sub(" ", t)
         t = t.lower()
-        t = re.sub(r"what's", "what is ", t)
-        t = re.sub(r"\'s", " ", t)
-        t = re.sub(r"\'ve", " have ", t)
-        t = re.sub(r"can't", "cannot ", t)
-        t = re.sub(r"n't", " not ", t)
-        t = re.sub(r"i'm", "i am ", t)
-        t = re.sub(r"\'re", " are ", t)
-        t = re.sub(r"\'d", " would ", t)
-        t = re.sub(r"\'ll", " will ", t)
         t = re.sub(r",", " ", t)
         t = re.sub(r"\.", " ", t)
         t = re.sub(r"!", " ! ", t)
         t = re.sub(r"\?", " ? ", t)
         t = re.sub(r"\/", " ", t)
         t = re.sub(r"'", " ", t)
-        t = re.sub(r" e g ", " eg ", t)
-        t = re.sub(r" b g ", " bg ", t)
-        t = re.sub(r" u s ", " american ", t)
         return t
 
     @staticmethod
     def remove_stopwords(t):
         return ' '.join([w for w in t.split() if not w in stops])
+
+    @staticmethod
+    def revise_star(t):
+        ret = []
+        for word in t.split():
+            if ('*' in word) and (re.sub('\*', '', word) in toxic_indicator_words_sets):
+                word = re.sub('\*', '', word)
+            ret.append(word)
+        ret = re.sub('\*', ' ', ' '.join(ret))
+        return ret
 
     @staticmethod
     def revise_triple_and_more_letters(t):
@@ -172,17 +123,6 @@ class CommProcess(object):
         return ' '.join(ret)
 
     @staticmethod
-    def revise_mask_words(t):
-        ret = []
-        for word in t.split():
-            if word in masks:
-                ret.append(mask_origin[word])
-            else:
-                ret.append(word)
-        ret = re.sub(r"\*", " ", ' '.join(ret))
-        return ret
-
-    @staticmethod
     def fill_na(t):
         if t.strip() == '':
             return 'NA'
@@ -192,8 +132,8 @@ class CommProcess(object):
 def execute_comm_process(df):
     comm_process_pipeline = [
         CommProcess.clean_text,
-        CommProcess.revise_mask_words,
         CommProcess.remove_stopwords,
+        CommProcess.revise_star,
         CommProcess.revise_triple_and_more_letters,
         CommProcess.revise_redundancy_words,
         CommProcess.fill_na,
