@@ -6,7 +6,7 @@ import numpy as np
 
 from data_split import label_candidates
 from data_split import K
-# from comm_preprocessing import data_comm_preprocessed_dir
+from comm_preprocessing import data_comm_preprocessed_dir
 from comm_preprocessing import COMMENT_COL, ID_COL
 from comm_preprocessing import toxicIndicator_transformers
 from comm_preprocessing_heavy import data_comm_preprocessed_heavy_dir
@@ -22,18 +22,19 @@ import gc
 NAN_BLANK = 'nanblank'
 NUM_OF_LABEL = 6
 
-max_features_word = 50000
-max_features_char = 50000
+max_features_word = 30000
+max_features_char = 30000
+max_df = 0.995
 min_df = 10
-ngram_range_word = (1, 3)
+ngram_range_word = (1, 2)
 ngram_range_char = (2, 5)
 
 
 def read_data_in_fold(k):
-    # df_trn = pd.read_csv(data_comm_preprocessed_dir + '{0}_train.csv'.format(k))
-    # df_val = pd.read_csv(data_comm_preprocessed_dir + '{0}_valid.csv'.format(k))
-    df_trn = pd.read_csv(data_comm_preprocessed_heavy_dir + '{0}_train.csv'.format(k))
-    df_val = pd.read_csv(data_comm_preprocessed_heavy_dir + '{0}_valid.csv'.format(k))
+    df_trn = pd.read_csv(data_comm_preprocessed_dir + '{0}_train.csv'.format(k))
+    df_val = pd.read_csv(data_comm_preprocessed_dir + '{0}_valid.csv'.format(k))
+    # df_trn = pd.read_csv(data_comm_preprocessed_heavy_dir + '{0}_train.csv'.format(k))
+    # df_val = pd.read_csv(data_comm_preprocessed_heavy_dir + '{0}_valid.csv'.format(k))
     df_trn[COMMENT_COL] = df_trn[COMMENT_COL].astype('str')
     df_val[COMMENT_COL] = df_val[COMMENT_COL].astype('str')
     print('train data in fold {0} : {1}'.format(k, len(df_trn.index)))
@@ -42,16 +43,16 @@ def read_data_in_fold(k):
 
 
 def read_test_data():
-    # df_test = pd.read_csv(data_comm_preprocessed_dir + 'test.csv')
-    df_test = pd.read_csv(data_comm_preprocessed_heavy_dir + 'test.csv')
+    df_test = pd.read_csv(data_comm_preprocessed_dir + 'test.csv')
+    # df_test = pd.read_csv(data_comm_preprocessed_heavy_dir + 'test.csv')
     df_test[COMMENT_COL] = df_test[COMMENT_COL].astype('str')
     print('test data {0}'.format(len(df_test.index)))
     return df_test
 
 
 def read_train_data():
-    # df_train = pd.read_csv(data_comm_preprocessed_dir + 'train.csv')
-    df_train = pd.read_csv(data_comm_preprocessed_heavy_dir + 'train.csv')
+    df_train = pd.read_csv(data_comm_preprocessed_dir + 'train.csv')
+    # df_train = pd.read_csv(data_comm_preprocessed_heavy_dir + 'train.csv')
     df_train[COMMENT_COL] = df_train[COMMENT_COL].astype('str')
     print('train data {0}'.format(len(df_train.index)))
     return df_train
@@ -61,13 +62,13 @@ def get_extractor(mode):
     assert mode in ['word', 'char']
     if mode == 'word':
         extractor = TfidfVectorizer(
-            max_df=0.995, min_df=10,
+            max_df=max_df, min_df=min_df,
             max_features=max_features_word, ngram_range=ngram_range_word,
             analyzer='word', binary=True, lowercase=True
         )
     if mode == 'char':
         extractor = TfidfVectorizer(
-            max_df=0.995, min_df=10,
+            max_df=max_df, min_df=min_df,
             max_features=max_features_char, ngram_range=ngram_range_char,
             analyzer='char', binary=True, lowercase=True
         )
@@ -78,7 +79,7 @@ def conduct_transform(extractor, data):
     return extractor.transform(data)
 
 def get_model():
-    return LogisticRegression(solver='sag', n_jobs=12, verbose=1, tol=5e-6)
+    return LogisticRegression(solver='sag', n_jobs=12, verbose=0, tol=1e-5)
 
 
 def run_cv():
@@ -91,12 +92,10 @@ def run_cv():
     extractor_word = get_extractor('word')
     extractor_word.fit(pd.concat((df_train.loc[:, COMMENT_COL], df_test.loc[:, COMMENT_COL])))
 
-    st(context=21)
 
     extractor_char = get_extractor('char')
     extractor_char.fit(pd.concat((df_train.loc[:, COMMENT_COL], df_test.loc[:, COMMENT_COL])))
 
-    st(context=21)
 
     X_test_word = conduct_transform(extractor_word, X_test)
     X_test_char = conduct_transform(extractor_char, X_test)
