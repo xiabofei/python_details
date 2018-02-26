@@ -1,8 +1,6 @@
 '''
-dp 0.35
-unit 128
-Local auc : 0.98961
-Public lb : 0.9853
+1) use glove 100d for word embedding layer
+2) use gru as rnn layer
 '''
 import argparse
 
@@ -14,14 +12,15 @@ from keras.preprocessing.text import Tokenizer
 from keras.preprocessing.sequence import pad_sequences
 from keras.layers import Dense
 from keras.layers import Embedding
-from keras.layers import CuDNNGRU
+from keras.layers import Conv1D
+from keras.layers import GlobalMaxPooling1D
+from keras.layers import Concatenate
 from keras.layers import Input
-from keras.layers import Dropout
-from keras.layers import Bidirectional
-from keras.layers import SpatialDropout1D
+from keras.layers import Dropout, SpatialDropout1D
+from keras.layers import BatchNormalization
 
 from keras.models import Model
-from keras.optimizers import Nadam
+from keras.optimizers import RMSprop, Nadam, Adam
 
 from keras.callbacks import EarlyStopping, ModelCheckpoint, ReduceLROnPlateau
 
@@ -29,24 +28,21 @@ from data_split import label_candidates
 from comm_preprocessing import data_comm_preprocessed_dir
 from comm_preprocessing import COMMENT_COL, ID_COL
 from comm_preprocessing import toxicIndicator_transformers
-# from comm_preprocessing_lighter_enhance import toxicIndicator_transformers
+from attlayer import AttentionWeightedAverage
 
-from keras.callbacks import Callback
-from sklearn.metrics import roc_auc_score
-
-from attention_layer import Attention
-
-# MAX_NUM_WORDS = 380000  # keras Tokenizer keep MAX_NUM_WORDS-1 words and left index 0 for null word
 MAX_NUM_WORDS = 283000  # keras Tokenizer keep MAX_NUM_WORDS-1 words and left index 0 for null word
 MAX_SEQUENCE_LENGTH = 200
 RUNS_IN_FOLD = 5
 NUM_OF_LABEL = 6
 
 EPOCHS = 30
-BATCH_SIZE = 128
+BATCH_SIZE = 64
 
 from ipdb import set_trace as st
 import gc
+
+# mode = 'try'
+mode = 'other'
 
 
 def read_data_in_fold(k):
@@ -74,6 +70,7 @@ def read_train_data():
 def get_fitted_tokenizer(df_train, df_test):
     comments_train = df_train[COMMENT_COL].values.tolist()
     comments_test = df_test[COMMENT_COL].values.tolist()
+    tokenizer = Tokenizer()
     # remain '!' and '?'
     tokenizer = Tokenizer(filters='"#$%&()*+,-./:;<=>@[\\]^_`{|}~\t\n')
     # tokenizer = Tokenizer()
@@ -88,11 +85,11 @@ def get_padded_sequence(tokenizer, texts):
     return padded_sequence
 
 
-def get_embedding_lookup_table(word_index, glove_path, embedding_dim):
+def get_embedding_lookup_table(word_index, glove_path, fasttext_path, embedding_dim):
     def _get_glove_embedding_index(path):
         ret = dict()
         for l in open(path):
-            values = l.strip().split(' ')
+            values = l.split(' ')
             word = values[0]
             vector = asarray(values[1:], dtype='float32')
             ret[word] = vector
@@ -105,42 +102,60 @@ def get_embedding_lookup_table(word_index, glove_path, embedding_dim):
         print('total {0} word vectors after add toxic indicator transformers'.format(len(ret)))
         return ret
 
-    # get glove word vector
-    glove_embedding_index = _get_glove_embedding_index(glove_path)
     nb_words = min(MAX_NUM_WORDS, len(word_index))
+    if mode == 'try':
+        return np.zeros((nb_words, embedding_dim)), np.zeros((nb_words, embedding_dim))
+
     print('! index : {0}'.format(word_index['!']))
     print('? index : {0}'.format(word_index['?']))
-    # get embedding lookup table
-    embedding_lookup_table = np.zeros((nb_words, embedding_dim))
+
+    # get glove word vector
+    glove_embedding_index = _get_glove_embedding_index(glove_path)
+    glove_embedding_lookup_table = np.zeros((nb_words, embedding_dim))
     for word, index in word_index.items():
         if index >= MAX_NUM_WORDS:
             continue
         vector = glove_embedding_index.get(word)
         if vector is not None:
-            embedding_lookup_table[index] = vector
-    print('null word embeddings : {0}'.format(np.sum(np.sum(embedding_lookup_table, axis=1) == 0)))
+            glove_embedding_lookup_table[index] = vector
+    print('glove null word embeddings : {0}'.format(
+        np.sum(np.sum(glove_embedding_lookup_table, axis=1) == 0)))
     del glove_embedding_index
     gc.collect()
-    return embedding_lookup_table
+    return glove_embedding_lookup_table, np.zeros((nb_words, embedding_dim))
 
 
-def get_model(embedding_lookup_table, dropout, spatial_dropout):
+def get_model(glove_embedding_lookup_table, fasttext_embedding_lookup_table, dropout):
+    print('dropout : {0}'.format(dropout))
     input_layer = Input(shape=(MAX_SEQUENCE_LENGTH,), dtype='int32')
-    embedding_layer = Embedding(
-        input_dim=embedding_lookup_table.shape[0],
-        output_dim=embedding_lookup_table.shape[1],
-        weights=[embedding_lookup_table],
+
+    # add hyper-parameter micro vibration
+    # vibration_filters = np.random.randint(125, 135)
+    # vibration_dropout = 0.595 + np.random.rand() * 0.01
+    ## Chanel 1 : glove embedding
+    glove_embedding_layer = Embedding(
+        input_dim=glove_embedding_lookup_table.shape[0],
+        output_dim=glove_embedding_lookup_table.shape[1],
+        weights=[glove_embedding_lookup_table],
         trainable=False
     )(input_layer)
-    layer = embedding_layer
-    layer = SpatialDropout1D(spatial_dropout)(layer)
-    print('spatial dropout : {0}'.format(spatial_dropout))
-    # hyper-parameter vibration
-    dropout = dropout - 0.002 + np.random.rand() * 0.004
-    print('dropout : {0}'.format(dropout))
-    layer = Bidirectional(CuDNNGRU(units=64, return_sequences=True))(layer)
+    glove_embedding_layer = SpatialDropout1D(0.2)(glove_embedding_layer)
+    embedding_dim = glove_embedding_lookup_table.shape[1]
+    kernel_sizes = [2, 3, 4]
+    num_filters = 200
+    # num_filters = vibration_filters
+    glove_multi_filters = []
+    for kernel_size in kernel_sizes:
+        _layer = Conv1D(filters=num_filters, kernel_size=kernel_size, activation='relu')(glove_embedding_layer)
+        _layer = BatchNormalization()(_layer)
+        # _layer = GlobalMaxPooling1D()(_layer)
+        _layer = AttentionWeightedAverage()(_layer)
+        glove_multi_filters.append(_layer)
+    glove_chanel = Concatenate(axis=1)(glove_multi_filters)
+
+    layer = glove_chanel
     layer = Dropout(dropout)(layer)
-    layer = Bidirectional(CuDNNGRU(units=64, return_sequences=False))(layer)
+    layer = Dense(units=128, activation='relu')(layer)
     output_layer = Dense(6, activation='sigmoid')(layer)
     model = Model(inputs=input_layer, outputs=output_layer)
     model.compile(loss='binary_crossentropy', optimizer=Nadam(), metrics=['acc'])
@@ -159,7 +174,7 @@ def run_one_fold(fold):
     all_words = set(word_index.keys())
     for toxic, transformers in toxicIndicator_transformers.items():
         for transformer in transformers:
-            if transformer==toxic:
+            if transformer == toxic:
                 continue
             if transformer in all_words:
                 transformers_count += tokenizer.word_counts[transformer]
@@ -169,11 +184,10 @@ def run_one_fold(fold):
 
     # get embedding lookup table
     embedding_dim = 300
-    # fasttext_path = '../data/input/fasttext_dir/fasttext.300d.txt'
-    # embedding_lookup_table = get_embedding_lookup_table(word_index, fasttext_path, embedding_dim)
     glove_path = '../data/input/glove_dir/glove.840B.300d.txt'
-    # glove_path = '../data/input/glove_dir/glove.6B.{0}d.txt'.format(embedding_dim)
-    embedding_lookup_table = get_embedding_lookup_table(word_index, glove_path, embedding_dim)
+    fasttext_path = '../data/input/fasttext_dir/fasttext.300d.txt'
+    glove_embedding_lookup_table, fasttext_embedding_lookup_table = \
+        get_embedding_lookup_table(word_index, glove_path, fasttext_path, embedding_dim)
 
     # read in fold data
     df_trn, df_val = read_data_in_fold(fold)
@@ -201,13 +215,22 @@ def run_one_fold(fold):
         print('\nFold {0} run {1} begin'.format(fold, run))
 
         # model
-        model = get_model(embedding_lookup_table, float(FLAGS.dp), float(FLAGS.sdp))
-        # print(model.summary())
+        model = get_model(glove_embedding_lookup_table, fasttext_embedding_lookup_table, float(FLAGS.dp))
+        print(model.summary())
+
+        if mode == 'try':
+            st(context=3)
 
         # callbacks
-        es = EarlyStopping(monitor='val_acc', mode='max', patience=3)
-        bst_model_path = '../data/output/model/{0}fold_{1}run_{2}dp_{3}sdp_glove_gru.h5'.format(fold, run, FLAGS.dp, FLAGS.sdp)
+        es = EarlyStopping(monitor='val_acc', mode='max', patience=5)
+        bst_model_path = '../data/output/model/{0}fold_{1}run_glove_cnn.h5'.format(fold, run)
         mc = ModelCheckpoint(bst_model_path, save_best_only=True, save_weights_only=True)
+        rp = ReduceLROnPlateau(
+            monitor='val_acc', mode='max',
+            patience=3,
+            factor=np.sqrt(0.1),
+            verbose=1
+        )
 
         # train
         hist = model.fit(
@@ -216,15 +239,15 @@ def run_one_fold(fold):
             epochs=EPOCHS,
             batch_size=BATCH_SIZE,
             shuffle=True,
-            callbacks=[es, mc]
+            callbacks=[es, mc, rp]
         )
         model.load_weights(bst_model_path)
         bst_val_score = max(hist.history['val_acc'])
         print('\nFold {0} run {1} best val score : {2}'.format(fold, run, bst_val_score))
 
         # predict
-        preds_test += model.predict(X_test, batch_size=1024, verbose=1) / RUNS_IN_FOLD
-        preds_valid += model.predict(X_val, batch_size=1024, verbose=1) / RUNS_IN_FOLD
+        preds_test += model.predict(X_test, batch_size=512, verbose=1) / RUNS_IN_FOLD
+        preds_valid += model.predict(X_val, batch_size=512, verbose=1) / RUNS_IN_FOLD
         print('\nFold {0} run {1} done'.format(fold, run))
 
         del model
@@ -236,22 +259,19 @@ def run_one_fold(fold):
     df_preds_test[ID_COL] = id_test
     for idx, label in enumerate(label_candidates):
         df_preds_test[label] = preds_test[idx]
-    # df_preds_test.to_csv('../data/output/preds/fasttext_gru/{0}fold_test.csv'.format(fold), index=False)
-    df_preds_test.to_csv('../data/output/preds/glove_gru/{0}/{1}/{2}fold_test.csv'.format(FLAGS.dp, FLAGS.sdp, fold), index=False)
+    df_preds_test.to_csv('../data/output/preds/glove_cnn/{0}/{1}fold_test.csv'.format(FLAGS.dp, fold), index=False)
 
     preds_valid = preds_valid.T
     df_preds_val = pd.DataFrame()
     df_preds_val[ID_COL] = id_val
     for idx, label in enumerate(label_candidates):
         df_preds_val[label] = preds_valid[idx]
-    # df_preds_val.to_csv('../data/output/preds/fasttext_gru/{0}fold_valid.csv'.format(fold), index=False)
-    df_preds_val.to_csv('../data/output/preds/glove_gru/{0}/{1}/{2}fold_valid.csv'.format(FLAGS.dp, FLAGS.sdp, fold), index=False)
+    df_preds_val.to_csv('../data/output/preds/glove_cnn/{0}/{1}fold_valid.csv'.format(FLAGS.dp, fold), index=False)
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--fold', type=str, default='0', help='train on which fold')
-    parser.add_argument('--dp', type=str, default='0.35', help='dropout')
-    parser.add_argument('--sdp', type=str, default='0.2', help='spatial dropout')
+    parser.add_argument('--dp', type=str, default='0.625', help='dropout')
     FLAGS, _ = parser.parse_known_args()
-    np.random.seed(int(FLAGS.fold))
     run_one_fold(FLAGS.fold)

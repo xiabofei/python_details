@@ -12,11 +12,13 @@ special_character_removal = re.compile(r'[^a-z\d ]', re.IGNORECASE)
 replace_numbers = re.compile(r'\d+', re.IGNORECASE)
 # stopwords
 stops = set(stopwords.words("english"))
+stops.discard('you')
+print('{0}'.format('you' in stops))
 
 COMMENT_COL = 'comment_text'
 ID_COL = 'id'
 data_split_dir = '../data/input/data_split/'
-data_comm_preprocessed_heavy_dir = '../data/input/data_comm_preprocessed_heavy/'
+data_comm_preprocessed_dir = '../data/input/data_comm_preprocessed/'
 
 # redundancy words and their right formats
 redundancy_rightFormat = {
@@ -95,13 +97,11 @@ asterisk_mask = {
     'niggar': ['nig**', ],
     'hell': ['he**'],
 }
-
 mask_origin = dict()
 for origin, mask_candidates in asterisk_mask.items():
     for mask in set(mask_candidates):
         mask_origin[mask] = origin
 masks = set(mask_origin.keys())
-
 
 # all the words below are included in glove dictionary
 # combine these toxic indicators with 'CommProcess.revise_triple_and_more_letters'
@@ -130,6 +130,8 @@ toxic_indicator_words = [
     'jew', 'jews',
     'fat', 'sex', 'die',
 ]
+toxic_indicator_words_sets = set(toxic_indicator_words)
+
 
 def _get_toxicIndicator_transformers():
     toxicIndicator_transformers = dict()
@@ -150,33 +152,13 @@ def _get_toxicIndicator_transformers():
 
 toxicIndicator_transformers = _get_toxicIndicator_transformers()
 
-transform_origin = dict()
-for origin, toxic_words in toxicIndicator_transformers.items():
-    for toxic in toxic_words:
-        transform_origin[toxic] = origin
-toxic_transforms = set(transform_origin.keys())
-
-# all = 0
-# for k,v in toxicIndicator_transformers.items():
-#     all += len(v) - 1
-# print(all)
-# st(context=21)
 
 class CommProcess(object):
     @staticmethod
     def clean_text(t):
-        t = re.sub(r"[^A-Za-z0-9,*!?.\/']", " ", t)
+        t = re.sub(r"[^A-Za-z0-9,!?*.\/']", " ", t)
         t = replace_numbers.sub(" ", t)
         t = t.lower()
-        t = re.sub(r"what's", "what is ", t)
-        t = re.sub(r"\'s", " ", t)
-        t = re.sub(r"\'ve", " have ", t)
-        t = re.sub(r"can't", "cannot ", t)
-        t = re.sub(r"n't", " not ", t)
-        t = re.sub(r"i'm", "i am ", t)
-        t = re.sub(r"\'re", " are ", t)
-        t = re.sub(r"\'d", " would ", t)
-        t = re.sub(r"\'ll", " will ", t)
         t = re.sub(r",", " ", t)
         t = re.sub(r"\.", " ", t)
         t = re.sub(r"!", " ! ", t)
@@ -190,20 +172,24 @@ class CommProcess(object):
         return ' '.join([w for w in t.split() if not w in stops])
 
     @staticmethod
+    def revise_star(t):
+        ret = []
+        for word in t.split():
+            if '*' in word:
+                if re.sub('\*', '', word) in toxic_indicator_words_sets:
+                    word = re.sub('\*', '', word)
+                elif word in masks:
+                    word = mask_origin[word]
+            ret.append(word)
+        ret = re.sub('\*', ' ', ' '.join(ret))
+        return ret
+
+    @staticmethod
     def revise_triple_and_more_letters(t):
         for letter in 'abcdefghijklmnopqrstuvwxyz':
             reg = letter + "{2,}"
             t = re.sub(reg, letter + letter, t)
         return t
-
-    @staticmethod
-    def normalize_toxic_word(t):
-        ret = []
-        for word in t.split():
-            if word in toxic_transforms:
-                word = transform_origin[word]
-            ret.append(word)
-        return ' '.join(ret)
 
     @staticmethod
     def revise_redundancy_words(t):
@@ -217,19 +203,8 @@ class CommProcess(object):
         return ' '.join(ret)
 
     @staticmethod
-    def revise_mask_words(t):
-        ret = []
-        for word in t.split():
-            if word in masks:
-                ret.append(mask_origin[word])
-            else:
-                ret.append(word)
-        ret = re.sub(r"\*", " ", ' '.join(ret))
-        return ret
-
-    @staticmethod
     def fill_na(t):
-        if t == '':
+        if t.strip() == '':
             return 'NA'
         return t
 
@@ -238,10 +213,9 @@ def execute_comm_process(df):
     comm_process_pipeline = [
         CommProcess.clean_text,
         CommProcess.remove_stopwords,
+        CommProcess.revise_star,
         CommProcess.revise_triple_and_more_letters,
-        CommProcess.normalize_toxic_word,
         CommProcess.revise_redundancy_words,
-        CommProcess.revise_mask_words,
         CommProcess.fill_na,
     ]
     for cp in comm_process_pipeline:
@@ -261,15 +235,15 @@ if __name__ == '__main__':
         # comm processing
         df_trn = execute_comm_process(df_trn)
         df_val = execute_comm_process(df_val)
-        df_trn.to_csv(data_comm_preprocessed_heavy_dir + '{0}_train.csv'.format(k), index=False)
-        df_val.to_csv(data_comm_preprocessed_heavy_dir + '{0}_valid.csv'.format(k), index=False)
+        df_trn.to_csv(data_comm_preprocessed_dir + '{0}_train.csv'.format(k), index=False)
+        df_val.to_csv(data_comm_preprocessed_dir + '{0}_valid.csv'.format(k), index=False)
     # Process whole train data
     print('Comm processing whole train data')
     df_train = pd.read_csv('../data/input/train.csv')
     df_train = execute_comm_process(df_train)
-    df_train.to_csv(data_comm_preprocessed_heavy_dir + 'train.csv', index=False)
+    df_train.to_csv(data_comm_preprocessed_dir + 'train.csv', index=False)
     # Process test data
     print('Comm processing test data')
     df_test = pd.read_csv('../data/input/test.csv')
     df_test = execute_comm_process(df_test)
-    df_test.to_csv(data_comm_preprocessed_heavy_dir + 'test.csv', index=False)
+    df_test.to_csv(data_comm_preprocessed_dir + 'test.csv', index=False)

@@ -18,6 +18,7 @@ from keras.layers import CuDNNGRU
 from keras.layers import Input
 from keras.layers import Dropout
 from keras.layers import Bidirectional
+from keras.layers import GlobalMaxPooling1D
 from keras.layers import SpatialDropout1D
 
 from keras.models import Model
@@ -29,12 +30,8 @@ from data_split import label_candidates
 from comm_preprocessing import data_comm_preprocessed_dir
 from comm_preprocessing import COMMENT_COL, ID_COL
 from comm_preprocessing import toxicIndicator_transformers
-# from comm_preprocessing_lighter_enhance import toxicIndicator_transformers
 
-from keras.callbacks import Callback
-from sklearn.metrics import roc_auc_score
-
-from attention_layer import Attention
+from attlayer import AttentionWeightedAverage
 
 # MAX_NUM_WORDS = 380000  # keras Tokenizer keep MAX_NUM_WORDS-1 words and left index 0 for null word
 MAX_NUM_WORDS = 283000  # keras Tokenizer keep MAX_NUM_WORDS-1 words and left index 0 for null word
@@ -124,7 +121,7 @@ def get_embedding_lookup_table(word_index, glove_path, embedding_dim):
     return embedding_lookup_table
 
 
-def get_model(embedding_lookup_table, dropout, spatial_dropout):
+def get_model(embedding_lookup_table, dropout):
     input_layer = Input(shape=(MAX_SEQUENCE_LENGTH,), dtype='int32')
     embedding_layer = Embedding(
         input_dim=embedding_lookup_table.shape[0],
@@ -133,14 +130,14 @@ def get_model(embedding_lookup_table, dropout, spatial_dropout):
         trainable=False
     )(input_layer)
     layer = embedding_layer
-    layer = SpatialDropout1D(spatial_dropout)(layer)
-    print('spatial dropout : {0}'.format(spatial_dropout))
     # hyper-parameter vibration
-    dropout = dropout - 0.002 + np.random.rand() * 0.004
     print('dropout : {0}'.format(dropout))
     layer = Bidirectional(CuDNNGRU(units=64, return_sequences=True))(layer)
-    layer = Dropout(dropout)(layer)
-    layer = Bidirectional(CuDNNGRU(units=64, return_sequences=False))(layer)
+    # layer = GlobalMaxPooling1D()(layer)
+    layer = AttentionWeightedAverage()(layer)
+    layer = Dropout(0.2)(layer)
+    layer = Dense(64, activation='relu')(layer)
+    layer = Dropout(0.2)(layer)
     output_layer = Dense(6, activation='sigmoid')(layer)
     model = Model(inputs=input_layer, outputs=output_layer)
     model.compile(loss='binary_crossentropy', optimizer=Nadam(), metrics=['acc'])
@@ -201,12 +198,14 @@ def run_one_fold(fold):
         print('\nFold {0} run {1} begin'.format(fold, run))
 
         # model
-        model = get_model(embedding_lookup_table, float(FLAGS.dp), float(FLAGS.sdp))
-        # print(model.summary())
+        model = get_model(embedding_lookup_table, float(FLAGS.dp))
+        print(model.summary())
+        st()
 
         # callbacks
         es = EarlyStopping(monitor='val_acc', mode='max', patience=3)
-        bst_model_path = '../data/output/model/{0}fold_{1}run_{2}dp_{3}sdp_glove_gru.h5'.format(fold, run, FLAGS.dp, FLAGS.sdp)
+        bst_model_path = '../data/output/model/{0}fold_{1}run_{2}dp_glove_gru.h5'.format(fold, run, FLAGS.dp)
+        # bst_model_path = '../data/output/model/{0}fold_{1}run_fasttext_gru.h5'.format(fold, run)
         mc = ModelCheckpoint(bst_model_path, save_best_only=True, save_weights_only=True)
 
         # train
@@ -237,7 +236,7 @@ def run_one_fold(fold):
     for idx, label in enumerate(label_candidates):
         df_preds_test[label] = preds_test[idx]
     # df_preds_test.to_csv('../data/output/preds/fasttext_gru/{0}fold_test.csv'.format(fold), index=False)
-    df_preds_test.to_csv('../data/output/preds/glove_gru/{0}/{1}/{2}fold_test.csv'.format(FLAGS.dp, FLAGS.sdp, fold), index=False)
+    df_preds_test.to_csv('../data/output/preds/glove_gru/{0}/{1}fold_test.csv'.format(FLAGS.dp, fold), index=False)
 
     preds_valid = preds_valid.T
     df_preds_val = pd.DataFrame()
@@ -245,13 +244,12 @@ def run_one_fold(fold):
     for idx, label in enumerate(label_candidates):
         df_preds_val[label] = preds_valid[idx]
     # df_preds_val.to_csv('../data/output/preds/fasttext_gru/{0}fold_valid.csv'.format(fold), index=False)
-    df_preds_val.to_csv('../data/output/preds/glove_gru/{0}/{1}/{2}fold_valid.csv'.format(FLAGS.dp, FLAGS.sdp, fold), index=False)
+    df_preds_val.to_csv('../data/output/preds/glove_gru/{0}/{1}fold_valid.csv'.format(FLAGS.dp, fold), index=False)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--fold', type=str, default='0', help='train on which fold')
     parser.add_argument('--dp', type=str, default='0.35', help='dropout')
-    parser.add_argument('--sdp', type=str, default='0.2', help='spatial dropout')
     FLAGS, _ = parser.parse_known_args()
     np.random.seed(int(FLAGS.fold))
     run_one_fold(FLAGS.fold)

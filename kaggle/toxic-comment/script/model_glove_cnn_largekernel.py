@@ -33,11 +33,12 @@ from keras.callbacks import EarlyStopping, ModelCheckpoint, ReduceLROnPlateau
 from data_split import label_candidates
 from comm_preprocessing import data_comm_preprocessed_dir
 from comm_preprocessing import COMMENT_COL, ID_COL
-from comm_preprocessing import toxicIndicator_transformers
+from comm_preprocessing_lighter import toxicIndicator_transformers
 
-from attention_layer import Attention
+from roc_auc_metric import RocAucMetricCallback
+from roc_auc_metric import VAL_AUC
 
-MAX_NUM_WORDS = 284537  # keras Tokenizer keep MAX_NUM_WORDS-1 words and left index 0 for null word
+MAX_NUM_WORDS = 283000  # keras Tokenizer keep MAX_NUM_WORDS-1 words and left index 0 for null word
 MAX_SEQUENCE_LENGTH = 200
 RUNS_IN_FOLD = 5
 NUM_OF_LABEL = 6
@@ -280,11 +281,19 @@ def run_one_fold(fold):
             st(context=3)
 
         # callbacks
-        es = EarlyStopping(monitor='val_acc', mode='max', patience=5)
+        # es = EarlyStopping(monitor='val_acc', mode='max', patience=5)
+        val_auc = RocAucMetricCallback()
+        es = EarlyStopping(monitor=VAL_AUC, mode='max', patience=5)
         bst_model_path = '../data/output/model/{0}fold_{1}run_glove_cnn.h5'.format(fold, run)
         mc = ModelCheckpoint(bst_model_path, save_best_only=True, save_weights_only=True)
+        # rp = ReduceLROnPlateau(
+        #     monitor='val_acc', mode='max',
+        #     patience=3,
+        #     factor=np.sqrt(0.1),
+        #     verbose=1
+        # )
         rp = ReduceLROnPlateau(
-            monitor='val_acc', mode='max',
+            monitor=VAL_AUC, mode='max',
             patience=3,
             factor=np.sqrt(0.1),
             verbose=1
@@ -297,10 +306,11 @@ def run_one_fold(fold):
             epochs=EPOCHS,
             batch_size=BATCH_SIZE,
             shuffle=True,
-            callbacks=[es, mc, rp]
+            callbacks=[val_auc, es, mc, rp]
         )
         model.load_weights(bst_model_path)
-        bst_val_score = max(hist.history['val_acc'])
+        # bst_val_score = max(hist.history['val_acc'])
+        bst_val_score = max(hist.history[VAL_AUC])
         print('\nFold {0} run {1} best val score : {2}'.format(fold, run, bst_val_score))
 
         # predict
@@ -329,6 +339,6 @@ def run_one_fold(fold):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--fold', type=str, default='0', help='train on which fold')
-    parser.add_argument('--dp', type=str, default='0.35', help='dropout')
+    parser.add_argument('--dp', type=str, default='0.625', help='dropout')
     FLAGS, _ = parser.parse_known_args()
     run_one_fold(FLAGS.fold)
