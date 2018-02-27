@@ -30,11 +30,10 @@ from comm_preprocessing import data_comm_preprocessed_dir
 from comm_preprocessing import COMMENT_COL, ID_COL
 from comm_preprocessing import toxicIndicator_transformers
 # from comm_preprocessing_lighter_enhance import toxicIndicator_transformers
-
-from keras.callbacks import Callback
-from sklearn.metrics import roc_auc_score
-
 from attention_layer import Attention
+
+from roc_auc_metric import RocAucMetricCallback
+from roc_auc_metric import VAL_AUC
 
 # MAX_NUM_WORDS = 380000  # keras Tokenizer keep MAX_NUM_WORDS-1 words and left index 0 for null word
 MAX_NUM_WORDS = 283000  # keras Tokenizer keep MAX_NUM_WORDS-1 words and left index 0 for null word
@@ -133,6 +132,7 @@ def get_model(embedding_lookup_table, dropout, spatial_dropout):
         trainable=False
     )(input_layer)
     layer = embedding_layer
+    # spatial_dropout = spatial_dropout - 0.002 + np.random.rand() * 0.004
     layer = SpatialDropout1D(spatial_dropout)(layer)
     print('spatial dropout : {0}'.format(spatial_dropout))
     # hyper-parameter vibration
@@ -205,7 +205,9 @@ def run_one_fold(fold):
         # print(model.summary())
 
         # callbacks
-        es = EarlyStopping(monitor='val_acc', mode='max', patience=3)
+        # es = EarlyStopping(monitor='val_acc', mode='max', patience=3)
+        val_auc = RocAucMetricCallback()
+        es = EarlyStopping(monitor=VAL_AUC, mode='max', patience=3)
         bst_model_path = '../data/output/model/{0}fold_{1}run_{2}dp_{3}sdp_glove_gru.h5'.format(fold, run, FLAGS.dp, FLAGS.sdp)
         mc = ModelCheckpoint(bst_model_path, save_best_only=True, save_weights_only=True)
 
@@ -216,10 +218,11 @@ def run_one_fold(fold):
             epochs=EPOCHS,
             batch_size=BATCH_SIZE,
             shuffle=True,
-            callbacks=[es, mc]
+            callbacks=[val_auc, es, mc]
         )
         model.load_weights(bst_model_path)
-        bst_val_score = max(hist.history['val_acc'])
+        # bst_val_score = max(hist.history['val_acc'])
+        bst_val_score = max(hist.history[VAL_AUC])
         print('\nFold {0} run {1} best val score : {2}'.format(fold, run, bst_val_score))
 
         # predict
@@ -236,7 +239,6 @@ def run_one_fold(fold):
     df_preds_test[ID_COL] = id_test
     for idx, label in enumerate(label_candidates):
         df_preds_test[label] = preds_test[idx]
-    # df_preds_test.to_csv('../data/output/preds/fasttext_gru/{0}fold_test.csv'.format(fold), index=False)
     df_preds_test.to_csv('../data/output/preds/glove_gru/{0}/{1}/{2}fold_test.csv'.format(FLAGS.dp, FLAGS.sdp, fold), index=False)
 
     preds_valid = preds_valid.T
@@ -250,7 +252,7 @@ def run_one_fold(fold):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--fold', type=str, default='0', help='train on which fold')
-    parser.add_argument('--dp', type=str, default='0.35', help='dropout')
+    parser.add_argument('--dp', type=str, default='0.375', help='dropout')
     parser.add_argument('--sdp', type=str, default='0.2', help='spatial dropout')
     FLAGS, _ = parser.parse_known_args()
     np.random.seed(int(FLAGS.fold))
