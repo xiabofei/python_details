@@ -13,12 +13,14 @@ from ipdb import set_trace as st
 
 n_classes = len(label_candidates)
 
-rnn = '../data/output/stack_ensemble/rnn/'
-cnn = '../data/output/stack_ensemble/cnn/'
-cnn_wordchar = '../data/output/stack_ensemble/cnn_wordchar/'
-lr = '../data/output/stack_ensemble/lr/'
 
-stack_ensemble_materials = [rnn, cnn, lr]
+stack_ensemble_materials = [
+    '../data/output/stack_ensemble/deep_gru/',
+    '../data/output/stack_ensemble/maxpool_gru/',
+    '../data/output/stack_ensemble/skip_gru/',
+    '../data/output/stack_ensemble/largekernel_cnn/',
+    '../data/output/stack_ensemble/lr/',
+]
 
 
 EPS = 1e-8
@@ -34,12 +36,16 @@ def get_gbdt_params():
     '''
     params = {
         'objective': 'binary',
-        'learning_rate': 0.03,
+        'learning_rate': 0.1,
         'max_depth': 4,
         'num_leaves' : 20,
         # 'feature_fraction': 0.8,
-        # 'bagging_fraction': 0.99,
-        # 'bagging_freq': 10,
+        'bagging_fraction': 0.75,
+        'bagging_freq': 5,
+        'min_child_weight' : 25,
+        # 'min_split_gain' : 0.1,
+        'reg_alpha' : 1,
+        #'reg_lambda' : 0.9993343,
         'max_bin': 255,
         'nthread': 12,
         'verbose': 0,

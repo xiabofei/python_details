@@ -6,8 +6,9 @@ import pandas as pd
 
 submit0 = '../data/output/preds/glove_gru/lb9856_cv98997/avg_submit.csv'
 submit1 = '../data/output/preds/glove_fasttext_cnn/avg_submit_98792.csv'
+submit2 = '../data/output/preds/glove_fasttext_cnn/lb9843_cv9886/avg_submit.csv'
 # submit2 = '../data/output/preds/fasttext_gru/avg_submit_9883.csv'
-candidates = [submit0, submit1]
+candidates = [submit0, submit2]
 
 df0 = pd.read_csv(candidates[0])
 df_average_submit = pd.DataFrame()

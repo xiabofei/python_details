@@ -14,10 +14,13 @@ from keras.layers import Dense
 from keras.layers import Embedding
 from keras.layers import Conv1D
 from keras.layers import GlobalMaxPooling1D
+from keras.layers import GlobalAveragePooling1D
 from keras.layers import Concatenate
 from keras.layers import Input
 from keras.layers import Dropout, SpatialDropout1D
 from keras.layers import BatchNormalization
+from keras.layers import SpatialDropout1D
+from keras.layers import concatenate
 
 from keras.models import Model
 from keras.optimizers import RMSprop, Nadam, Adam
@@ -29,6 +32,9 @@ from comm_preprocessing import data_comm_preprocessed_dir
 from comm_preprocessing import COMMENT_COL, ID_COL
 from comm_preprocessing import toxicIndicator_transformers
 from attlayer import AttentionWeightedAverage
+
+from roc_auc_metric import RocAucMetricCallback
+from roc_auc_metric import VAL_AUC
 
 MAX_NUM_WORDS = 283000  # keras Tokenizer keep MAX_NUM_WORDS-1 words and left index 0 for null word
 MAX_SEQUENCE_LENGTH = 200
@@ -102,6 +108,22 @@ def get_embedding_lookup_table(word_index, glove_path, fasttext_path, embedding_
         print('total {0} word vectors after add toxic indicator transformers'.format(len(ret)))
         return ret
 
+    def _get_fasttext_embedding_index(path):
+        ret = dict()
+        for l in open(path):
+            values = l.strip().split(' ')
+            word = values[0]
+            vector = asarray(values[1:], dtype='float32')
+            ret[word] = vector
+        print('total {0} word vectors'.format(len(ret)))
+        # add toxic transformer vector
+        for toxic, transformers in toxicIndicator_transformers.items():
+            if toxic in ret.keys():
+                for transformer in transformers:
+                    ret[transformer] = ret[toxic]
+        print('total {0} word vectors after add toxic indicator transformers'.format(len(ret)))
+        return ret
+
     nb_words = min(MAX_NUM_WORDS, len(word_index))
     if mode == 'try':
         return np.zeros((nb_words, embedding_dim)), np.zeros((nb_words, embedding_dim))
@@ -122,16 +144,28 @@ def get_embedding_lookup_table(word_index, glove_path, fasttext_path, embedding_
         np.sum(np.sum(glove_embedding_lookup_table, axis=1) == 0)))
     del glove_embedding_index
     gc.collect()
-    return glove_embedding_lookup_table, np.zeros((nb_words, embedding_dim))
+
+    # get fasttext word vector
+    fasttext_embedding_index = _get_fasttext_embedding_index(fasttext_path)
+    fasttext_embedding_lookup_table = np.zeros((nb_words, embedding_dim))
+    for word, index in word_index.items():
+        if index >= MAX_NUM_WORDS:
+            continue
+        vector = fasttext_embedding_index.get(word)
+        if vector is not None:
+            fasttext_embedding_lookup_table[index] = vector
+    print('fasttext null word embeddings : {0}'.format(
+        np.sum(np.sum(fasttext_embedding_lookup_table, axis=1) == 0)))
+    del fasttext_embedding_index
+    gc.collect()
+
+    return glove_embedding_lookup_table, fasttext_embedding_lookup_table
 
 
 def get_model(glove_embedding_lookup_table, fasttext_embedding_lookup_table, dropout):
     print('dropout : {0}'.format(dropout))
     input_layer = Input(shape=(MAX_SEQUENCE_LENGTH,), dtype='int32')
 
-    # add hyper-parameter micro vibration
-    # vibration_filters = np.random.randint(125, 135)
-    # vibration_dropout = 0.595 + np.random.rand() * 0.01
     ## Chanel 1 : glove embedding
     glove_embedding_layer = Embedding(
         input_dim=glove_embedding_lookup_table.shape[0],
@@ -140,22 +174,37 @@ def get_model(glove_embedding_lookup_table, fasttext_embedding_lookup_table, dro
         trainable=False
     )(input_layer)
     glove_embedding_layer = SpatialDropout1D(0.2)(glove_embedding_layer)
-    embedding_dim = glove_embedding_lookup_table.shape[1]
     kernel_sizes = [2, 3, 4]
-    num_filters = 200
+    num_filters = 128
     # num_filters = vibration_filters
     glove_multi_filters = []
     for kernel_size in kernel_sizes:
-        _layer = Conv1D(filters=num_filters, kernel_size=kernel_size, activation='relu')(glove_embedding_layer)
-        _layer = BatchNormalization()(_layer)
-        # _layer = GlobalMaxPooling1D()(_layer)
-        _layer = AttentionWeightedAverage()(_layer)
-        glove_multi_filters.append(_layer)
-    glove_chanel = Concatenate(axis=1)(glove_multi_filters)
+        conv1d = Conv1D(filters=num_filters, kernel_size=kernel_size, activation='relu')(glove_embedding_layer)
+        bn = BatchNormalization()(conv1d)
+        max_pool = GlobalMaxPooling1D()(bn)
+        # max_pool = AttentionWeightedAverage()(bn)
+        glove_multi_filters.append(max_pool)
+    # glove_chanel = Concatenate(axis=1)(glove_multi_filters)
 
-    layer = glove_chanel
+    ## Chanel 2 : fasttext embedding
+    fasttext_embedding_layer = Embedding(
+        input_dim=fasttext_embedding_lookup_table.shape[0],
+        output_dim=fasttext_embedding_lookup_table.shape[1],
+        weights=[fasttext_embedding_lookup_table],
+        trainable=False
+    )(input_layer)
+    fasttext_embedding_layer = SpatialDropout1D(0.2)(fasttext_embedding_layer)
+    kernel_sizes = [2, 3, 4]
+    num_filters = 128
+    fasttext_multi_filters = []
+    for kernel_size in kernel_sizes:
+        conv1d = Conv1D(filters=num_filters, kernel_size=kernel_size, activation='tanh')(fasttext_embedding_layer)
+        max_pool = GlobalMaxPooling1D()(conv1d)
+        # max_pool = AttentionWeightedAverage()(conv1d)
+        fasttext_multi_filters.append(max_pool)
+    # fasttext_chanel = Concatenate(axis=1)(fasttext_multi_filters)
+    layer = concatenate(glove_multi_filters + fasttext_multi_filters)
     layer = Dropout(dropout)(layer)
-    layer = Dense(units=128, activation='relu')(layer)
     output_layer = Dense(6, activation='sigmoid')(layer)
     model = Model(inputs=input_layer, outputs=output_layer)
     model.compile(loss='binary_crossentropy', optimizer=Nadam(), metrics=['acc'])
@@ -222,16 +271,23 @@ def run_one_fold(fold):
             st(context=3)
 
         # callbacks
-        es = EarlyStopping(monitor='val_acc', mode='max', patience=5)
+        val_auc = RocAucMetricCallback()
+        es = EarlyStopping(monitor=VAL_AUC, mode='max', patience=5)
+        # es = EarlyStopping(monitor='val_acc', mode='max', patience=5)
         bst_model_path = '../data/output/model/{0}fold_{1}run_glove_cnn.h5'.format(fold, run)
         mc = ModelCheckpoint(bst_model_path, save_best_only=True, save_weights_only=True)
+        # rp = ReduceLROnPlateau(
+        #     monitor='val_acc', mode='max',
+        #     patience=3,
+        #     factor=np.sqrt(0.1),
+        #     verbose=1
+        # )
         rp = ReduceLROnPlateau(
-            monitor='val_acc', mode='max',
+            monitor=VAL_AUC, mode='max',
             patience=3,
             factor=np.sqrt(0.1),
             verbose=1
         )
-
         # train
         hist = model.fit(
             x=X_trn, y=y_trn,
@@ -239,10 +295,11 @@ def run_one_fold(fold):
             epochs=EPOCHS,
             batch_size=BATCH_SIZE,
             shuffle=True,
-            callbacks=[es, mc, rp]
+            callbacks=[val_auc, es, mc, rp]
         )
         model.load_weights(bst_model_path)
-        bst_val_score = max(hist.history['val_acc'])
+        bst_val_score = max(hist.history[VAL_AUC])
+        # bst_val_score = max(hist.history['val_acc'])
         print('\nFold {0} run {1} best val score : {2}'.format(fold, run, bst_val_score))
 
         # predict
@@ -273,5 +330,6 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--fold', type=str, default='0', help='train on which fold')
     parser.add_argument('--dp', type=str, default='0.625', help='dropout')
+    parser.add_argument('--sdp', type=str, default='0.2', help='spatial dropout')
     FLAGS, _ = parser.parse_known_args()
     run_one_fold(FLAGS.fold)
