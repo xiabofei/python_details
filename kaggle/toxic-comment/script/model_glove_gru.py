@@ -10,10 +10,6 @@ import pandas as pd
 import numpy as np
 from numpy import asarray
 
-
-from nltk import tokenize
-tokenize.sent_tokenize()
-
 from keras.preprocessing.text import Tokenizer
 from keras.preprocessing.sequence import pad_sequences
 from keras.layers import Dense
@@ -34,7 +30,6 @@ from comm_preprocessing import data_comm_preprocessed_dir
 from comm_preprocessing import COMMENT_COL, ID_COL
 from comm_preprocessing import toxicIndicator_transformers
 # from comm_preprocessing_lighter_enhance import toxicIndicator_transformers
-from attention_layer import Attention
 
 from roc_auc_metric import RocAucMetricCallback
 from roc_auc_metric import VAL_AUC
@@ -78,7 +73,7 @@ def get_fitted_tokenizer(df_train, df_test):
     comments_train = df_train[COMMENT_COL].values.tolist()
     comments_test = df_test[COMMENT_COL].values.tolist()
     # remain '!' and '?'
-    tokenizer = Tokenizer(filters='"#$%&()*+,-./:;<=>@[\\]^_`{|}~\t\n')
+    tokenizer = Tokenizer(filters='"#$%&()*+,.-/:;<=>@[\\]^_`{|}~\t\n')
     # tokenizer = Tokenizer()
     # tokenizer.num_words = MAX_NUM_WORDS
     tokenizer.fit_on_texts(comments_train + comments_test)
@@ -136,7 +131,6 @@ def get_model(embedding_lookup_table, dropout, spatial_dropout):
         trainable=False
     )(input_layer)
     layer = embedding_layer
-    # spatial_dropout = spatial_dropout - 0.002 + np.random.rand() * 0.004
     layer = SpatialDropout1D(spatial_dropout)(layer)
     print('spatial dropout : {0}'.format(spatial_dropout))
     # hyper-parameter vibration
@@ -257,7 +251,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--fold', type=str, default='0', help='train on which fold')
     parser.add_argument('--dp', type=str, default='0.375', help='dropout')
-    parser.add_argument('--sdp', type=str, default='0.2', help='spatial dropout')
+    parser.add_argument('--sdp', type=str, default='0.3', help='spatial dropout')
     FLAGS, _ = parser.parse_known_args()
     np.random.seed(int(FLAGS.fold))
     run_one_fold(FLAGS.fold)
