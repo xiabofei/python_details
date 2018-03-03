@@ -18,7 +18,7 @@ threshold = 0.5
 
 # root_dir = '../data/output/preds/glove_gru/0.3/'
 # root_dir = '../data/output/preds/glove_gru/0.35/'
-# root_dir = '../data/output/preds/glove_gru/0.375/0.2/'
+root_dir = '../data/output/preds/glove_gru/0.375/0.3/'
 # root_dir = '../data/output/preds/glove_gru/0.4/'
 # root_dir = '../data/output/preds/glove_gru/0.45/'
 # root_dir = '../data/output/preds/glove_gru/0.5/'
@@ -35,7 +35,6 @@ threshold = 0.5
 # root_dir = '../data/output/preds/lr/'
 #root_dir = '/home/baibing/Kaggle/Toxic/data/output/stack_ensemble/'
 #root_dir = '../data/output/preds/cnn_rnn/0.2/'
-root_dir = '../data/output/preds/glove_gru_singleLabel/0.375/0.3/'
 
 # get id and true label
 df_train_processed = pd.read_csv('../data/input/data_comm_preprocessed/train.csv')
@@ -50,7 +49,7 @@ for label in labels:
     id_preds = {}
     for k in range(K):
         print('fold {0}'.format(k))
-        df = pd.read_csv(root_dir+'{0}fold_{1}_'.format(k, label) + '{0: 1.0, 1: 1.0}_valid.csv')
+        df = pd.read_csv(root_dir+'{0}fold_'.format(k) + 'valid.csv')
         id_list = df[ID_COL].values.tolist()
         preds_list = df[label].values.tolist()
         for id, preds in zip(id_list, preds_list):
