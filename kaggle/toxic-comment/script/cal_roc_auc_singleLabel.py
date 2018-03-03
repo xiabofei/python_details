@@ -8,7 +8,9 @@ from sklearn.metrics import roc_auc_score
 
 from ipdb import set_trace as st
 
-n_classes = len(label_candidates)
+from data_split import TOXIC, SEVERE_TOXIC, OBSCENE, THREAT, INSULT, IDENTITY_HATE
+
+labels = [TOXIC, SEVERE_TOXIC, OBSCENE, THREAT, INSULT, IDENTITY_HATE]
 
 # root_dir = '../data/output/preds/glove_gru/0.3/'
 # root_dir = '../data/output/preds/glove_gru/0.35/'
@@ -33,32 +35,27 @@ root_dir = '../data/output/preds/glove_gru/0.375/0.2/'
 # get id and true label
 df_train = pd.read_csv('../data/input/train.csv')
 ids = df_train[ID_COL].values.tolist()
-y_true = df_train[label_candidates].values
 
-# get oof valid preds
-id_preds = {}
-for k in range(K):
-    print('fold {0}'.format(k))
-    df = pd.read_csv(root_dir+'{0}fold_valid.csv'.format(k))
-    id_list = df[ID_COL].values.tolist()
-    preds_list = df[label_candidates].values.tolist()
-    for id, preds in zip(id_list, preds_list):
-        id_preds[id] = preds
+# calculate label-wise roc-auc value
+for label in labels:
+    y_true = df_train[label].values
+    # get oof valid preds
+    id_preds = {}
+    for k in range(K):
+        print('fold {0}'.format(k))
+        df = pd.read_csv(root_dir+'{0}fold_{1}_valid.csv'.format(k, label))
+        id_list = df[ID_COL].values.tolist()
+        preds_list = df[label].values.tolist()
+        for id, preds in zip(id_list, preds_list):
+            id_preds[id] = preds
 
-# match valid preds and origin label by id
-y_score = []
-for id in ids:
-    y_score.append(id_preds[id])
-y_score = np.array(y_score)
+    # match valid preds and origin label by id
+    y_score = []
+    for id in ids:
+        y_score.append(id_preds[id])
+    y_score = np.array(y_score)
 
-# mean column-wise roc auc
-score = roc_auc_score(y_true=y_true, y_score=y_score, average='macro')
-print('roc auc score : {0}'.format(score))
+    # single Label AUC
+    score = roc_auc_score(y_true=y_true, y_score=y_score)
+    print('{0} : {1}'.format(label, score))
 
-# check average='macro'
-score = 0.0
-for i, label in enumerate(label_candidates):
-    auc = roc_auc_score(y_true=y_true[:,i], y_score=y_score[:,i])
-    print('label {0} : auc {1}'.format(label, auc))
-    score += auc / n_classes
-print('average 6 roc auc score : {0}'.format(score))

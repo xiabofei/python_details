@@ -19,8 +19,6 @@ from keras.layers import Input
 from keras.layers import Dropout
 from keras.layers import Bidirectional
 from keras.layers import SpatialDropout1D
-from keras.layers import GlobalMaxPooling1D
-from keras.layers import concatenate
 
 from keras.models import Model
 from keras.optimizers import Nadam
@@ -32,7 +30,7 @@ from comm_preprocessing import data_comm_preprocessed_dir
 from comm_preprocessing import COMMENT_COL, ID_COL
 from comm_preprocessing import toxicIndicator_transformers
 # from comm_preprocessing_lighter_enhance import toxicIndicator_transformers
-from attlayer import AttentionWeightedAverage
+from attention_layer import Attention
 
 from roc_auc_metric import RocAucMetricCallback
 from roc_auc_metric import VAL_AUC
@@ -40,11 +38,15 @@ from roc_auc_metric import VAL_AUC
 # MAX_NUM_WORDS = 380000  # keras Tokenizer keep MAX_NUM_WORDS-1 words and left index 0 for null word
 MAX_NUM_WORDS = 283000  # keras Tokenizer keep MAX_NUM_WORDS-1 words and left index 0 for null word
 MAX_SEQUENCE_LENGTH = 200
-RUNS_IN_FOLD = 5
+RUNS_IN_FOLD = 3
 NUM_OF_LABEL = 6
 
 EPOCHS = 30
 BATCH_SIZE = 128
+
+from data_split import TOXIC, SEVERE_TOXIC, OBSCENE, THREAT, INSULT, IDENTITY_HATE
+
+LABEL_NAME = TOXIC
 
 from ipdb import set_trace as st
 import gc
@@ -131,22 +133,19 @@ def get_model(embedding_lookup_table, dropout, spatial_dropout):
         input_dim=embedding_lookup_table.shape[0],
         output_dim=embedding_lookup_table.shape[1],
         weights=[embedding_lookup_table],
-        # trainable=False
+        trainable=False
     )(input_layer)
     layer = embedding_layer
-    maxpool_embed = GlobalMaxPooling1D()(layer)
     # spatial_dropout = spatial_dropout - 0.002 + np.random.rand() * 0.004
-    embed_after_sdp = SpatialDropout1D(spatial_dropout)(layer)
+    layer = SpatialDropout1D(spatial_dropout)(layer)
     print('spatial dropout : {0}'.format(spatial_dropout))
-    gru_one = Bidirectional(CuDNNGRU(units=64, return_sequences=True))(embed_after_sdp)
     # hyper-parameter vibration
     dropout = dropout - 0.002 + np.random.rand() * 0.004
     print('dropout : {0}'.format(dropout))
-    gru_one_after_dp = Dropout(dropout)(gru_one)
-    gru_two = Bidirectional(CuDNNGRU(units=64, return_sequences=True))(gru_one_after_dp)
-    layer = concatenate([gru_two, gru_one, maxpool_embed])
-    layer = AttentionWeightedAverage()(layer)
-    output_layer = Dense(6, activation='sigmoid')(layer)
+    layer = Bidirectional(CuDNNGRU(units=64, return_sequences=True))(layer)
+    layer = Dropout(dropout)(layer)
+    layer = Bidirectional(CuDNNGRU(units=64, return_sequences=False))(layer)
+    output_layer = Dense(1, activation='sigmoid')(layer)
     model = Model(inputs=input_layer, outputs=output_layer)
     model.compile(loss='binary_crossentropy', optimizer=Nadam(), metrics=['acc'])
     return model
@@ -164,7 +163,7 @@ def run_one_fold(fold):
     all_words = set(word_index.keys())
     for toxic, transformers in toxicIndicator_transformers.items():
         for transformer in transformers:
-            if transformer==toxic:
+            if transformer == toxic:
                 continue
             if transformer in all_words:
                 transformers_count += tokenizer.word_counts[transformer]
@@ -189,32 +188,36 @@ def run_one_fold(fold):
     print('Test data shape {0}'.format(X_test.shape))
 
     X_trn = get_padded_sequence(tokenizer, df_trn[COMMENT_COL].astype('str').values.tolist())
-    y_trn = df_trn[label_candidates].values
+    y_trn = df_trn[LABEL_NAME].values
+    print('Label name : {0}'.format(LABEL_NAME))
     print('Fold {0} train data shape {1} '.format(fold, X_trn.shape))
 
     X_val = get_padded_sequence(tokenizer, df_val[COMMENT_COL].astype('str').values.tolist())
-    y_val = df_val[label_candidates].values
+    y_val = df_val[LABEL_NAME].values
     id_val = df_val[ID_COL].values.tolist()
+    print('Label name : {0}'.format(LABEL_NAME))
     print('Fold {0} valid data shape {1} '.format(fold, X_val.shape))
 
     # preds result array
-    preds_test = np.zeros((X_test.shape[0], NUM_OF_LABEL))
-    preds_valid = np.zeros((X_val.shape[0], NUM_OF_LABEL))
+    preds_test = np.zeros((X_test.shape[0], 1))
+    preds_valid = np.zeros((X_val.shape[0], 1))
 
     # train model
+    class_weight = {0: float(FLAGS.zw), 1: float(FLAGS.ow)}
+    print('class weight : {0}'.format(class_weight))
     for run in range(RUNS_IN_FOLD):
         print('\nFold {0} run {1} begin'.format(fold, run))
 
         # model
         model = get_model(embedding_lookup_table, float(FLAGS.dp), float(FLAGS.sdp))
-        print(model.summary())
-        st()
+        # print(model.summary())
 
         # callbacks
-        # es = EarlyStopping(monitor='val_acc', mode='max', patience=3)
         val_auc = RocAucMetricCallback()
         es = EarlyStopping(monitor=VAL_AUC, mode='max', patience=3)
-        bst_model_path = '../data/output/model/{0}fold_{1}run_{2}dp_{3}sdp_glove_gru.h5'.format(fold, run, FLAGS.dp, FLAGS.sdp)
+        bst_model_path = \
+            '../data/output/model/{0}fold_{1}run_{2}dp_{3}sdp_glove_gru_singleLabel.h5'.format(
+                fold, run, FLAGS.dp, FLAGS.sdp)
         mc = ModelCheckpoint(bst_model_path, save_best_only=True, save_weights_only=True)
 
         # train
@@ -224,10 +227,10 @@ def run_one_fold(fold):
             epochs=EPOCHS,
             batch_size=BATCH_SIZE,
             shuffle=True,
-            callbacks=[val_auc, es, mc]
+            callbacks=[val_auc, es, mc],
+            class_weight=class_weight,
         )
         model.load_weights(bst_model_path)
-        # bst_val_score = max(hist.history['val_acc'])
         bst_val_score = max(hist.history[VAL_AUC])
         print('\nFold {0} run {1} best val score : {2}'.format(fold, run, bst_val_score))
 
@@ -240,26 +243,30 @@ def run_one_fold(fold):
         gc.collect()
 
     # record preds result
-    preds_test = preds_test.T
+    preds_test = preds_test
     df_preds_test = pd.DataFrame()
     df_preds_test[ID_COL] = id_test
-    for idx, label in enumerate(label_candidates):
-        df_preds_test[label] = preds_test[idx]
-    df_preds_test.to_csv('../data/output/preds/glove_gru/{0}/{1}/{2}fold_test.csv'.format(FLAGS.dp, FLAGS.sdp, fold), index=False)
+    df_preds_test[LABEL_NAME] = preds_test
+    df_preds_test.to_csv(
+        '../data/output/preds/glove_gru_singleLabel/{0}/{1}/{2}fold_{3}_{4}_test.csv'.format(
+            FLAGS.dp, FLAGS.sdp, fold, LABEL_NAME, class_weight), index=False)
 
-    preds_valid = preds_valid.T
+    preds_valid = preds_valid
     df_preds_val = pd.DataFrame()
     df_preds_val[ID_COL] = id_val
-    for idx, label in enumerate(label_candidates):
-        df_preds_val[label] = preds_valid[idx]
-    # df_preds_val.to_csv('../data/output/preds/fasttext_gru/{0}fold_valid.csv'.format(fold), index=False)
-    df_preds_val.to_csv('../data/output/preds/glove_gru/{0}/{1}/{2}fold_valid.csv'.format(FLAGS.dp, FLAGS.sdp, fold), index=False)
+    df_preds_val[LABEL_NAME] = preds_valid
+    df_preds_val.to_csv(
+        '../data/output/preds/glove_gru_singleLabel/{0}/{1}/{2}fold_{3}_{4}_valid.csv'.format(
+            FLAGS.dp, FLAGS.sdp, fold, LABEL_NAME, class_weight), index=False)
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--fold', type=str, default='0', help='train on which fold')
     parser.add_argument('--dp', type=str, default='0.375', help='dropout')
     parser.add_argument('--sdp', type=str, default='0.2', help='spatial dropout')
+    parser.add_argument('--zw', type=str, default='1', help='zero weight')
+    parser.add_argument('--ow', type=str, default='1', help='one weight')
     FLAGS, _ = parser.parse_known_args()
     np.random.seed(int(FLAGS.fold))
     run_one_fold(FLAGS.fold)

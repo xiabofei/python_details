@@ -10,6 +10,10 @@ import pandas as pd
 import numpy as np
 from numpy import asarray
 
+
+from nltk import tokenize
+tokenize.sent_tokenize()
+
 from keras.preprocessing.text import Tokenizer
 from keras.preprocessing.sequence import pad_sequences
 from keras.layers import Dense

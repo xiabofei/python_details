@@ -173,15 +173,16 @@ def get_model(glove_embedding_lookup_table, fasttext_embedding_lookup_table, dro
         weights=[glove_embedding_lookup_table],
         trainable=False
     )(input_layer)
-    glove_embedding_layer = SpatialDropout1D(0.2)(glove_embedding_layer)
+    # glove_embedding_layer = SpatialDropout1D(0.2)(glove_embedding_layer)
     kernel_sizes = [2, 3, 4]
     num_filters = 128
     # num_filters = vibration_filters
     glove_multi_filters = []
     for kernel_size in kernel_sizes:
         conv1d = Conv1D(filters=num_filters, kernel_size=kernel_size, activation='relu')(glove_embedding_layer)
-        bn = BatchNormalization()(conv1d)
-        max_pool = GlobalMaxPooling1D()(bn)
+        sdp = SpatialDropout1D(0.2)(conv1d)
+        # bn = BatchNormalization()(conv1d)
+        max_pool = GlobalMaxPooling1D()(sdp)
         # max_pool = AttentionWeightedAverage()(bn)
         glove_multi_filters.append(max_pool)
     # glove_chanel = Concatenate(axis=1)(glove_multi_filters)
@@ -193,14 +194,16 @@ def get_model(glove_embedding_lookup_table, fasttext_embedding_lookup_table, dro
         weights=[fasttext_embedding_lookup_table],
         trainable=False
     )(input_layer)
-    fasttext_embedding_layer = SpatialDropout1D(0.2)(fasttext_embedding_layer)
+    # fasttext_embedding_layer = SpatialDropout1D(0.2)(fasttext_embedding_layer)
     kernel_sizes = [2, 3, 4]
     num_filters = 128
     fasttext_multi_filters = []
     for kernel_size in kernel_sizes:
-        conv1d = Conv1D(filters=num_filters, kernel_size=kernel_size, activation='tanh')(fasttext_embedding_layer)
-        max_pool = GlobalMaxPooling1D()(conv1d)
-        # max_pool = AttentionWeightedAverage()(conv1d)
+        conv1d = Conv1D(filters=num_filters, kernel_size=kernel_size, activation='relu')(fasttext_embedding_layer)
+        sdp = SpatialDropout1D(0.2)(conv1d)
+        # bn = BatchNormalization()(conv1d)
+        max_pool = GlobalMaxPooling1D()(sdp)
+        # max_pool = AttentionWeightedAverage()(bn)
         fasttext_multi_filters.append(max_pool)
     # fasttext_chanel = Concatenate(axis=1)(fasttext_multi_filters)
     layer = concatenate(glove_multi_filters + fasttext_multi_filters)

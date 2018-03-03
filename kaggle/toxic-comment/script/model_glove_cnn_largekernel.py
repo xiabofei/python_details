@@ -185,10 +185,7 @@ def get_model(glove_embedding_lookup_table, fasttext_embedding_lookup_table ,dro
         bn = BatchNormalization()(conv)
         maxpool = MaxPool2D(
             pool_size=(MAX_SEQUENCE_LENGTH - filter_size + 1, 1), strides=(1, 1), padding='valid')(bn)
-        avgpool = AvgPool2D(
-            pool_size=(MAX_SEQUENCE_LENGTH - filter_size + 1, 1), strides=(1, 1), padding='valid')(bn)
         glove_multi_filters.append(maxpool)
-        glove_multi_filters.append(avgpool)
     glove_chanel = Concatenate(axis=1)(glove_multi_filters)
 
     ## Chanel 2 : fasttext embedding
@@ -210,10 +207,7 @@ def get_model(glove_embedding_lookup_table, fasttext_embedding_lookup_table ,dro
                       kernel_initializer='normal', activation='tanh')(reshape)
         maxpool = MaxPool2D(
             pool_size=(MAX_SEQUENCE_LENGTH - filter_size + 1, 1), strides=(1, 1), padding='valid')(conv)
-        avgpool = AvgPool2D(
-            pool_size=(MAX_SEQUENCE_LENGTH - filter_size + 1, 1), strides=(1, 1), padding='valid')(bn)
         fasttext_multi_filters.append(maxpool)
-        fasttext_multi_filters.append(avgpool)
     fasttext_chanel = Concatenate(axis=1)(fasttext_multi_filters)
 
     # merge glove convs and fasttext convs

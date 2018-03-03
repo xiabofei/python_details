@@ -132,7 +132,7 @@ class CommProcess(object):
 def execute_comm_process(df):
     comm_process_pipeline = [
         CommProcess.clean_text,
-        # CommProcess.remove_stopwords,
+        CommProcess.remove_stopwords,
         CommProcess.revise_star,
         CommProcess.revise_triple_and_more_letters,
         CommProcess.revise_redundancy_words,

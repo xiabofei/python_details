@@ -15,11 +15,13 @@ from keras.preprocessing.sequence import pad_sequences
 from keras.layers import Dense
 from keras.layers import Embedding
 from keras.layers import CuDNNGRU
+from keras.layers import CuDNNLSTM
+from keras.layers import LSTM
 from keras.layers import Input
 from keras.layers import Dropout
 from keras.layers import Bidirectional
 from keras.layers import SpatialDropout1D
-from keras.layers import GlobalMaxPooling1D
+from keras.layers import GlobalMaxPooling1D, GlobalAveragePooling1D
 from keras.layers import concatenate
 
 from keras.models import Model
@@ -33,6 +35,7 @@ from comm_preprocessing import COMMENT_COL, ID_COL
 from comm_preprocessing import toxicIndicator_transformers
 # from comm_preprocessing_lighter_enhance import toxicIndicator_transformers
 from attlayer import AttentionWeightedAverage
+from attention_layer import Attention
 
 from roc_auc_metric import RocAucMetricCallback
 from roc_auc_metric import VAL_AUC
@@ -131,21 +134,20 @@ def get_model(embedding_lookup_table, dropout, spatial_dropout):
         input_dim=embedding_lookup_table.shape[0],
         output_dim=embedding_lookup_table.shape[1],
         weights=[embedding_lookup_table],
-        # trainable=False
+        trainable=False
     )(input_layer)
     layer = embedding_layer
-    maxpool_embed = GlobalMaxPooling1D()(layer)
     # spatial_dropout = spatial_dropout - 0.002 + np.random.rand() * 0.004
-    embed_after_sdp = SpatialDropout1D(spatial_dropout)(layer)
+    layer = SpatialDropout1D(spatial_dropout)(layer)
     print('spatial dropout : {0}'.format(spatial_dropout))
-    gru_one = Bidirectional(CuDNNGRU(units=64, return_sequences=True))(embed_after_sdp)
     # hyper-parameter vibration
-    dropout = dropout - 0.002 + np.random.rand() * 0.004
+    # dropout = dropout - 0.002 + np.random.rand() * 0.004
     print('dropout : {0}'.format(dropout))
-    gru_one_after_dp = Dropout(dropout)(gru_one)
-    gru_two = Bidirectional(CuDNNGRU(units=64, return_sequences=True))(gru_one_after_dp)
-    layer = concatenate([gru_two, gru_one, maxpool_embed])
+    layer = Bidirectional(LSTM(units=80, recurrent_dropout=0.3, return_sequences=True))(layer)
     layer = AttentionWeightedAverage()(layer)
+    # layer_max = GlobalMaxPooling1D()(layer)
+    # layer_avg = GlobalAveragePooling1D()(layer)
+    # layer = concatenate([layer_avg, layer_max])
     output_layer = Dense(6, activation='sigmoid')(layer)
     model = Model(inputs=input_layer, outputs=output_layer)
     model.compile(loss='binary_crossentropy', optimizer=Nadam(), metrics=['acc'])
@@ -207,8 +209,7 @@ def run_one_fold(fold):
 
         # model
         model = get_model(embedding_lookup_table, float(FLAGS.dp), float(FLAGS.sdp))
-        print(model.summary())
-        st()
+        # print(model.summary())
 
         # callbacks
         # es = EarlyStopping(monitor='val_acc', mode='max', patience=3)

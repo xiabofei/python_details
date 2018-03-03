@@ -8,6 +8,7 @@ submit_candidates = [
     ('../data/output/preds/skip_gru/lb9854_cv98988/avg_submit.csv', 'skip_gru'),
     ('../data/output/preds/maxpool_gru/lb9855_cv98978/avg_submit.csv', 'maxpool_gru'),
     ('../data/output/preds/largekernel_cnn/lb9843_cv9886/avg_submit.csv', 'largekernel_cnn'),
+    ('../data/output/preds/cnn_rnn/avg_submit.csv', 'cnn_rnn'),
 ]
 
 # load all candidates submit data
