@@ -9,10 +9,42 @@ from data_split import K
 from comm_preprocessing import COMMENT_COL, ID_COL
 
 from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.base import BaseEstimator, ClassifierMixin
+from sklearn.utils.validation import check_X_y, check_is_fitted
 from sklearn.linear_model import LogisticRegression
-from nltk.stem import SnowballStemmer
+from scipy import sparse
 
-from scipy.sparse import hstack
+from sklearn.base import BaseEstimator, ClassifierMixin
+from sklearn.utils.validation import check_X_y, check_is_fitted
+from sklearn.linear_model import LogisticRegression
+from scipy import sparse
+
+class NbSvmClassifier(BaseEstimator, ClassifierMixin):
+    def __init__(self, C=1.0, dual=False, n_jobs=1):
+        self.C = C
+        self.dual = dual
+        self.n_jobs = n_jobs
+
+    def predict(self, x):
+        check_is_fitted(self, ['_r', '_clf'])
+        return self._clf.predict(x.multiply(self._r))
+
+    def predict_proba(self, x):
+        check_is_fitted(self, ['_r', '_clf'])
+        return self._clf.predict_proba(x.multiply(self._r))
+
+    def fit(self, x, y):
+        # y = y.values
+        x, y = check_X_y(x, y, accept_sparse=True)
+
+        def pr(x, y_i, y):
+            p = x[y==y_i].sum(0)
+            return (p+1) / ((y==y_i).sum()+1)
+
+        self._r = sparse.csr_matrix(np.log(pr(x,1,y) / pr(x,0,y)))
+        x_nb = x.multiply(self._r)
+        self._clf = LogisticRegression(C=self.C, dual=self.dual, n_jobs=self.n_jobs).fit(x_nb, y)
+        return self
 
 from ipdb import set_trace as st
 import gc
@@ -21,8 +53,8 @@ NUM_OF_LABEL = 6
 
 
 def read_data_in_fold(k):
-    df_trn = pd.read_csv(data_split_dir + '{0}_train.csv'.format(k)).fillna(' ')
-    df_val = pd.read_csv(data_split_dir + '{0}_valid.csv'.format(k)).fillna(' ')
+    df_trn = pd.read_csv(data_split_dir + '{0}_train.csv'.format(k)).fillna('unknown')
+    df_val = pd.read_csv(data_split_dir + '{0}_valid.csv'.format(k)).fillna('unknown')
     df_trn[COMMENT_COL] = df_trn[COMMENT_COL].astype('str')
     df_val[COMMENT_COL] = df_val[COMMENT_COL].astype('str')
     print('train data in fold {0} : {1}'.format(k, len(df_trn.index)))
@@ -31,49 +63,38 @@ def read_data_in_fold(k):
 
 
 def read_test_data():
-    df_test = pd.read_csv('../data/input/test.csv').fillna(' ')
+    df_test = pd.read_csv('../data/input/test.csv').fillna('unknown')
     df_test[COMMENT_COL] = df_test[COMMENT_COL].astype('str')
     print('test data {0}'.format(len(df_test.index)))
     return df_test
 
 
 def read_train_data():
-    df_train = pd.read_csv('../data/input/train.csv').fillna(' ')
+    df_train = pd.read_csv('../data/input/train.csv').fillna('unknown')
     df_train[COMMENT_COL] = df_train[COMMENT_COL].astype('str')
     print('train data {0}'.format(len(df_train.index)))
     return df_train
 
 
-english_stemmer = SnowballStemmer('english')
-class StemmedTfidfVectorizer(TfidfVectorizer):
-    def build_analyzer(self):
-        analyzer = super(StemmedTfidfVectorizer, self).build_analyzer()
-        return lambda doc: (english_stemmer.stem(w) for w in analyzer(doc))
-
 def get_extractor(mode):
     if mode == 'word':
-        extractor = StemmedTfidfVectorizer(
-            sublinear_tf=True,
+        extractor = TfidfVectorizer(
+            ngram_range=(1, 2),
+            min_df=3,
+            max_df=0.9,
             strip_accents='unicode',
-            analyzer='word',
-            token_pattern=r'\w{1,}',
-            ngram_range=(1, 1),
-            max_features=10000)
-    if mode == 'char':
-        extractor = StemmedTfidfVectorizer(
-            sublinear_tf=True,
-            strip_accents='unicode',
-            analyzer='char',
-            ngram_range=(1, 5),
-            max_features=30000)
+            use_idf=1,
+            smooth_idf=1,
+            sublinear_tf=1,
+            analyzer='word_char',
+        )
     return extractor
-
 
 def conduct_transform(extractor, data):
     return extractor.transform(data)
 
 def get_model():
-    return LogisticRegression(solver='sag', n_jobs=12)
+    return NbSvmClassifier(C=4, dual=True, n_jobs=12)
 
 
 def run_cv():
@@ -87,13 +108,7 @@ def run_cv():
     extractor_word = get_extractor('word')
     extractor_word.fit(pd.concat((df_train.loc[:, COMMENT_COL], df_test.loc[:, COMMENT_COL])))
 
-    print('Fitting char level features ... ')
-    extractor_char = get_extractor('char')
-    extractor_char.fit(pd.concat((df_train.loc[:, COMMENT_COL], df_test.loc[:, COMMENT_COL])))
-
     X_test_word = conduct_transform(extractor_word, X_test)
-    X_test_char = conduct_transform(extractor_char, X_test)
-    X_test_all = hstack([X_test_word, X_test_char])
 
     for fold in range(K):
         # read in fold data
@@ -101,15 +116,11 @@ def run_cv():
 
         X_trn = df_trn[COMMENT_COL].values
         X_trn_word = conduct_transform(extractor_word, X_trn)
-        X_trn_char = conduct_transform(extractor_char, X_trn)
-        X_trn_all = hstack([X_trn_word, X_trn_char])
         y_trn = df_trn[label_candidates].values
         print('\nFold {0} train data shape {1} '.format(fold, X_trn.shape))
 
         X_val = df_val[COMMENT_COL].values
         X_val_word = conduct_transform(extractor_word, X_val)
-        X_val_char = conduct_transform(extractor_char, X_val)
-        X_val_all = hstack([X_val_word, X_val_char])
         y_val = df_val[label_candidates].values
         id_val = df_val[ID_COL].values.tolist()
         print('Fold {0} valid data shape {1} '.format(fold, X_val.shape))
@@ -123,15 +134,15 @@ def run_cv():
             print('\nFold {0} label {1}'.format(fold, label))
             model = get_model()
             print('   train')
-            model.fit(X=X_trn_all, y=y_trn[:,idx])
+            model.fit(x=X_trn_word, y=y_trn[:,idx])
             models.append(model)
             print('   predict valid')
-            preds_valid[:,idx] = model.predict_proba(X=X_val_all)[:,1]
+            preds_valid[:,idx] = model.predict_proba(x=X_val_word)[:,1]
 
         # predict in fold
         print('Fold {0} predict test'.format(fold))
         for idx, model in enumerate(models):
-            preds_test[:,idx] = model.predict_proba(X=X_test_all)[:,1]
+            preds_test[:,idx] = model.predict_proba(x=X_test_word)[:,1]
 
         # record preds result
         preds_test = preds_test.T
@@ -139,14 +150,14 @@ def run_cv():
         df_preds_test[ID_COL] = id_test
         for idx, label in enumerate(label_candidates):
             df_preds_test[label] = preds_test[idx]
-        df_preds_test.to_csv('../data/output/preds/lr/{0}fold_test.csv'.format(fold), index=False)
+        df_preds_test.to_csv('../data/output/preds/nbsvm/{0}fold_test.csv'.format(fold), index=False)
 
         preds_valid = preds_valid.T
         df_preds_val = pd.DataFrame()
         df_preds_val[ID_COL] = id_val
         for idx, label in enumerate(label_candidates):
             df_preds_val[label] = preds_valid[idx]
-        df_preds_val.to_csv('../data/output/preds/lr/{0}fold_valid.csv'.format(fold), index=False)
+        df_preds_val.to_csv('../data/output/preds/nbsvm/{0}fold_valid.csv'.format(fold), index=False)
 
 
 if __name__ == '__main__':
