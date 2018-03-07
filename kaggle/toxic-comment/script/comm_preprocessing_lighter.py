@@ -73,22 +73,67 @@ def _get_toxicIndicator_transformers():
         toxicIndicator_transformers[word] = tmp_1
     return toxicIndicator_transformers
 
+
 toxicIndicator_transformers = _get_toxicIndicator_transformers()
+
+deny_origin = {
+    "you're": ['you', 'are'],
+    "i'm": ['i', 'am'],
+    "he's": ['he', 'is'],
+    "she's": ['she', 'is'],
+    "it's": ['it', 'is'],
+    "they're": ['they', 'are'],
+    "can't": ['can', 'not'],
+    "couldn't": ['could', 'not'],
+    "don't": ['do', 'not'],
+    "don;t": ['do', 'not'],
+    "didn't": ['did', 'not'],
+    "doesn't": ['does', 'not'],
+    "isn't": ['is', 'not'],
+    "wasn't": ['was', 'not'],
+    "aren't": ['are', 'not'],
+    "weren't": ['were', 'not'],
+    "won't": ['will', 'not'],
+    "wouldn't": ['would', 'not'],
+    "hasn't": ['has', 'not'],
+    "haven't": ['have', 'not'],
+    "what's": ['what', 'is'],
+    "that's": ['that', 'is'],
+}
+denies = set(deny_origin.keys())
 
 
 class CommProcess(object):
     @staticmethod
     def clean_text(t):
-        t = re.sub(r"[^A-Za-z0-9,!?*.\/']", " ", t)
+        # t = re.sub(r"[^A-Za-z0-9,!?*.\/']", " ", t)
+        t = re.sub(r"[^A-Za-z0-9,!?*.;’´'\/]", " ", t)
         t = replace_numbers.sub(" ", t)
         t = t.lower()
         t = re.sub(r",", " ", t)
+        t = re.sub(r"’", "'", t)
+        t = re.sub(r"´", "'", t)
+        # revise deny format
         t = re.sub(r"\.", " ", t)
         t = re.sub(r"!", " ! ", t)
         t = re.sub(r"\?", " ? ", t)
         t = re.sub(r"\/", " ", t)
-        t = re.sub(r"'", " ", t)
         return t
+
+    @staticmethod
+    def revise_deny(t):
+        ret = []
+        for word in t.split():
+            if word in denies:
+                ret.append(deny_origin[word][0])
+                ret.append(deny_origin[word][1])
+            else:
+                ret.append(word)
+        ret = ' '.join(ret)
+        ret = re.sub("'", " ", ret)
+        ret = re.sub(r";", " ", ret)
+        return ret
+
 
     @staticmethod
     def remove_stopwords(t):
@@ -132,6 +177,7 @@ class CommProcess(object):
 def execute_comm_process(df):
     comm_process_pipeline = [
         CommProcess.clean_text,
+        CommProcess.revise_deny,
         # CommProcess.remove_stopwords,
         CommProcess.revise_star,
         CommProcess.revise_triple_and_more_letters,
