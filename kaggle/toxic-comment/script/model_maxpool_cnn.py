@@ -81,7 +81,12 @@ def get_fitted_tokenizer(df_train, df_test):
 
 def get_padded_sequence(tokenizer, texts):
     sequences = tokenizer.texts_to_sequences(texts)
-    padded_sequence = pad_sequences(sequences, maxlen=MAX_SEQUENCE_LENGTH)
+    padded_sequence = pad_sequences(
+        sequences,
+        padding='post',
+        truncating='post',
+        maxlen=MAX_SEQUENCE_LENGTH
+    )
     return padded_sequence
 
 
@@ -315,7 +320,7 @@ def run_one_fold(fold):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--fold', type=str, default='0', help='train on which fold')
-    parser.add_argument('--dp', type=str, default='0.625', help='dropout')
-    parser.add_argument('--sdp', type=str, default='0.2', help='spatial dropout')
+    parser.add_argument('--dp', type=str, default='0.55', help='dropout')
+    parser.add_argument('--sdp', type=str, default='0.4', help='spatial dropout')
     FLAGS, _ = parser.parse_known_args()
     run_one_fold(FLAGS.fold)

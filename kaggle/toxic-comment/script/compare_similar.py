@@ -4,11 +4,16 @@ from data_split import label_candidates
 import pandas as pd
 
 submit_candidates = [
-    ('../data/output/preds/deep_gru/lb9856_cv98997/avg_submit.csv', 'deep_gru'),
-    ('../data/output/preds/skip_gru/lb9854_cv98988/avg_submit.csv', 'skip_gru'),
-    ('../data/output/preds/maxpool_gru/lb9855_cv98978/avg_submit.csv', 'maxpool_gru'),
-    ('../data/output/preds/largekernel_cnn/lb9843_cv9886/avg_submit.csv', 'largekernel_cnn'),
-    ('../data/output/preds/cnn_rnn/avg_submit.csv', 'cnn_rnn'),
+    ('../data/output/preds/deep_gru/no_stopwords/lb9865_cv99109_post/avg_submit.csv', 'deep_gru_post'),
+    ('../data/output/preds/deep_gru/no_stopwords/lb9866_cv9905_pre/avg_submit.csv', 'deep_gru_pre'),
+    # ('../data/output/preds/deep_gru/no_stopwords/fasttext/lb9864_cv9907/avg_submit.csv', 'fasttext_deep_gru'),
+    ('../data/output/preds/skip_gru/no_stopwords/lb9864_cv99029/avg_submit.csv', 'skip_gru'),
+    ('../data/output/preds/maxpool_gru/no_stopwords/lb9864_cv99027/avg_submit.csv', 'maxpool_gru'),
+    # ('../data/output/preds/gru_conv1d/lb9862_cv99011/avg_submit.csv', 'gru_conv1d'),
+    # ('../data/output/preds/maxpool_cnn/with_stopwords/lb9852_cv98964/avg_submit.csv', 'maxpool_cnn'),
+    # ('../data/output/preds/lr/avg_submit.csv', 'lr'),
+    # ('../data/output/preds/nbsvm/lb9782_cv98168/avg_submit.csv', 'nbsvm'),
+    # ('../data/output/preds/gbdt/lb9776_cv9820/avg_submit.csv', 'gbdt'),
 ]
 
 # load all candidates submit data

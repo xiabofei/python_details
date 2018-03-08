@@ -4,11 +4,12 @@ from data_split import K,label_candidates
 from comm_preprocessing import ID_COL
 import pandas as pd
 
-submit0 = '../data/output/preds/glove_gru/lb9856_cv98997/avg_submit.csv'
-submit1 = '../data/output/preds/glove_fasttext_cnn/avg_submit_98792.csv'
-submit2 = '../data/output/preds/glove_fasttext_cnn/lb9843_cv9886/avg_submit.csv'
+submit0 = '../data/output/preds/maxpool_cnn/with_stopwords/avg_ensemble/avg_submit.csv'
+submit1 = '../data/output/preds/deep_gru/no_stopwords/avg_ensemble/avg_submit.csv'
+# submit1 = '../data/output/preds/glove_fasttext_cnn/avg_submit_98792.csv'
+# submit2 = '../data/output/preds/glove_fasttext_cnn/lb9843_cv9886/avg_submit.csv'
 # submit2 = '../data/output/preds/fasttext_gru/avg_submit_9883.csv'
-candidates = [submit0, submit2]
+candidates = [submit0, submit1]
 
 df0 = pd.read_csv(candidates[0])
 df_average_submit = pd.DataFrame()
@@ -17,7 +18,7 @@ for label in label_candidates:
     df_average_submit[label] = df0[label] / len(candidates)
 
 for submit in candidates[1:]:
-    df = pd.read_csv(submit1)
+    df = pd.read_csv(submit)
     for label in label_candidates:
         df_average_submit[label] += df[label] / len(candidates)
 
