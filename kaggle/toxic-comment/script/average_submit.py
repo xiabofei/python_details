@@ -4,12 +4,14 @@ from data_split import K,label_candidates
 from comm_preprocessing import ID_COL
 import pandas as pd
 
-submit0 = '../data/output/preds/maxpool_cnn/with_stopwords/avg_ensemble/avg_submit.csv'
+# submit0 = '../data/output/preds/maxpool_cnn/with_stopwords/avg_ensemble/avg_submit.csv'
+submit0 = '../data/output/preds/pool_cnn/avg_ensemble/avg_submit.csv'
 submit1 = '../data/output/preds/deep_gru/no_stopwords/avg_ensemble/avg_submit.csv'
+submit2 = '../data/output/kernel_blends/hight_of_blend_v2.csv'
 # submit1 = '../data/output/preds/glove_fasttext_cnn/avg_submit_98792.csv'
 # submit2 = '../data/output/preds/glove_fasttext_cnn/lb9843_cv9886/avg_submit.csv'
 # submit2 = '../data/output/preds/fasttext_gru/avg_submit_9883.csv'
-candidates = [submit0, submit1]
+candidates = [submit0, submit1, submit2]
 
 df0 = pd.read_csv(candidates[0])
 df_average_submit = pd.DataFrame()

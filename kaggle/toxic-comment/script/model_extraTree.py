@@ -73,7 +73,7 @@ def conduct_transform(extractor, data):
     return extractor.transform(data)
 
 def get_model():
-    return ExtraTreesClassifier(n_jobs=10)
+    return ExtraTreesClassifier(n_jobs=10, n_estimators=50)
 
 
 def run_cv():

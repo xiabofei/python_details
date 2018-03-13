@@ -4,13 +4,14 @@ from comm_preprocessing import ID_COL
 import pandas as pd
 
 candidates = [
-    # '../data/output/preds/maxpool_cnn/with_stopwords/lb9852_cv98956_pre/',
-    # '../data/output/preds/maxpool_cnn/with_stopwords/lb9852_cv98994_post/',
-    '../data/output/preds/deep_gru/no_stopwords/lb9865_cv99109_post/',
-    '../data/output/preds/deep_gru/no_stopwords/lb9866_cv9905_pre/',
+    '../data/output/preds/maxpool_cnn/with_stopwords/lb9852_cv98956_pre/',
+    # '../data/output/preds/maxpool_cnn/with_stopwords/lb9854_cv99001_post/',
+    '../data/output/preds/pool_cnn/lb9856_cv99042_post/',
+    # '../data/output/preds/deep_gru/no_stopwords/lb9865_cv99109_post/',
+    # '../data/output/preds/deep_gru/no_stopwords/lb9866_cv9905_pre/',
 ]
-# output_dir = '../data/output/preds/maxpool_cnn/with_stopwords/avg_ensemble/'
-output_dir = '../data/output/preds/deep_gru/no_stopwords/avg_ensemble/'
+output_dir = '../data/output/preds/pool_cnn/avg_ensemble/'
+# output_dir = '../data/output/preds/deep_gru/no_stopwords/avg_ensemble/'
 
 # Average Valid (similar to more runs per fold)
 for k in range(K):

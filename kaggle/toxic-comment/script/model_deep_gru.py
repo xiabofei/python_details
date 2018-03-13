@@ -19,11 +19,13 @@ from keras.layers import Input
 from keras.layers import Dropout
 from keras.layers import Bidirectional
 from keras.layers import SpatialDropout1D
+from keras.layers import PReLU
+from keras.layers import BatchNormalization
 
 from keras.models import Model
 from keras.optimizers import Nadam
 
-from keras.callbacks import EarlyStopping, ModelCheckpoint
+from keras.callbacks import EarlyStopping, ModelCheckpoint, ReduceLROnPlateau
 
 from data_split import label_candidates
 from comm_preprocessing import data_comm_preprocessed_dir
@@ -145,6 +147,10 @@ def get_model(embedding_lookup_table, dropout, spatial_dropout):
     layer = Bidirectional(CuDNNGRU(units=64, return_sequences=True))(layer)
     layer = Dropout(dropout)(layer)
     layer = Bidirectional(CuDNNGRU(units=64, return_sequences=False))(layer)
+    layer = Dense(400, kernel_initializer='he_normal')(layer)
+    layer = PReLU()(layer)
+    layer = BatchNormalization()(layer)
+    layer = Dropout(dropout)(layer)
     output_layer = Dense(6, activation='sigmoid')(layer)
     model = Model(inputs=input_layer, outputs=output_layer)
     model.compile(loss='binary_crossentropy', optimizer=Nadam(), metrics=['acc'])
@@ -210,11 +216,19 @@ def run_one_fold(fold):
 
         # callbacks
         val_auc = RocAucMetricCallback()
-        es = EarlyStopping(monitor=VAL_AUC, mode='max', patience=3)
+        es = EarlyStopping(monitor=VAL_AUC, mode='max', patience=6)
         bst_model_path = \
             '../data/output/model/{0}fold_{1}run_{2}dp_{3}sdp_deep_gru.h5'.format(
                 fold, run, FLAGS.dp, FLAGS.sdp)
         mc = ModelCheckpoint(bst_model_path, save_best_only=True, save_weights_only=True)
+        rp = ReduceLROnPlateau(
+            monitor=VAL_AUC, mode='max',
+            patience=2,
+            cooldown=1,
+            min_lr=0.0002,
+            factor=np.sqrt(0.1),
+            verbose=1
+        )
 
         # train
         hist = model.fit(
@@ -223,7 +237,7 @@ def run_one_fold(fold):
             epochs=EPOCHS,
             batch_size=BATCH_SIZE,
             shuffle=True,
-            callbacks=[val_auc, es, mc]
+            callbacks=[val_auc, es, mc, rp]
         )
         model.load_weights(bst_model_path)
         bst_val_score = max(hist.history[VAL_AUC])
