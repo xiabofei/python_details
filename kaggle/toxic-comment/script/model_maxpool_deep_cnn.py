@@ -44,7 +44,7 @@ RUNS_IN_FOLD = 5
 NUM_OF_LABEL = 6
 
 EPOCHS = 40
-BATCH_SIZE = 64
+BATCH_SIZE = 128
 
 from ipdb import set_trace as st
 import gc
@@ -171,7 +171,7 @@ def get_model(glove_embedding_lookup_table, fasttext_embedding_lookup_table, dro
     print('spatial dropout : {0}'.format(spatialDropout))
     input_layer = Input(shape=(MAX_SEQUENCE_LENGTH,), dtype='int32')
 
-    ## Chanel 1 : glove embedding
+    ## Glove embedding channel
     glove_embedding_layer = Embedding(
         input_dim=glove_embedding_lookup_table.shape[0],
         output_dim=glove_embedding_lookup_table.shape[1],
@@ -179,18 +179,22 @@ def get_model(glove_embedding_lookup_table, fasttext_embedding_lookup_table, dro
         trainable=False
     )(input_layer)
     glove_embedding_layer = SpatialDropout1D(spatialDropout)(glove_embedding_layer)
-    # kernel_sizes = [2, 3, 4]
-    kernel_sizes = [1, 2, 3]
-    print('kernel size : {0}'.format(kernel_sizes[0]))
-    num_filters = 128
-    glove_multi_filters = []
-    for kernel_size in kernel_sizes:
-        conv1d = Conv1D(
-            filters=num_filters, kernel_size=kernel_size, activation='relu')(glove_embedding_layer)
-        bn = BatchNormalization()(conv1d)
-        max_pool = GlobalMaxPooling1D()(bn)
-        glove_multi_filters.append(max_pool)
-    ## Chanel 2 : fasttext embedding
+    conv_1k = Conv1D(filters=128, kernel_size=1, padding='same', activation='relu')(glove_embedding_layer)
+    conv_2k = Conv1D(filters=128, kernel_size=2, padding='same', activation='relu')(glove_embedding_layer)
+    conv_3k = Conv1D(filters=128, kernel_size=3, padding='same', activation='relu')(glove_embedding_layer)
+    merge_1 = concatenate([conv_1k, conv_2k, conv_3k])
+    conv_1k = Conv1D(filters=64, kernel_size=1, padding='same', activation='relu')(merge_1)
+    conv_2k = Conv1D(filters=64, kernel_size=2, padding='same', activation='relu')(merge_1)
+    conv_3k = Conv1D(filters=64, kernel_size=3, padding='same', activation='relu')(merge_1)
+    conv_4k = Conv1D(filters=64, kernel_size=4, padding='same', activation='relu')(merge_1)
+    conv_5k = Conv1D(filters=64, kernel_size=5, padding='same', activation='relu')(merge_1)
+    maxpool_1 = GlobalMaxPooling1D()(conv_1k)
+    maxpool_2 = GlobalMaxPooling1D()(conv_2k)
+    maxpool_3 = GlobalMaxPooling1D()(conv_3k)
+    maxpool_4 = GlobalMaxPooling1D()(conv_4k)
+    maxpool_5 = GlobalMaxPooling1D()(conv_5k)
+    glove_multi_filters = [maxpool_1, maxpool_2, maxpool_3, maxpool_4, maxpool_5]
+    ## Fasttext embedding channel
     fasttext_embedding_layer = Embedding(
         input_dim=fasttext_embedding_lookup_table.shape[0],
         output_dim=fasttext_embedding_lookup_table.shape[1],
@@ -198,17 +202,29 @@ def get_model(glove_embedding_lookup_table, fasttext_embedding_lookup_table, dro
         trainable=False
     )(input_layer)
     fasttext_embedding_layer = SpatialDropout1D(spatialDropout)(fasttext_embedding_layer)
-    # kernel_sizes = [2, 3, 4]
-    kernel_sizes = [1, 2, 3]
-    print('kernel size : {0}'.format(kernel_sizes[0]))
-    num_filters = 128
-    fasttext_multi_filters = []
-    for kernel_size in kernel_sizes:
-        conv1d = Conv1D(
-            filters=num_filters, kernel_size=kernel_size, activation='tanh')(fasttext_embedding_layer)
-        bn = BatchNormalization()(conv1d)
-        max_pool = GlobalMaxPooling1D()(bn)
-        fasttext_multi_filters.append(max_pool)
+    conv_1k = Conv1D(filters=128, kernel_size=1, padding='same', kernel_initializer='he_normal')(fasttext_embedding_layer)
+    conv_2k = Conv1D(filters=128, kernel_size=2, padding='same', kernel_initializer='he_normal')(fasttext_embedding_layer)
+    conv_3k = Conv1D(filters=128, kernel_size=3, padding='same', kernel_initializer='he_normal')(fasttext_embedding_layer)
+    conv_1k = PReLU()(conv_1k)
+    conv_2k = PReLU()(conv_2k)
+    conv_3k = PReLU()(conv_3k)
+    merge_1 = concatenate([conv_1k, conv_2k, conv_3k])
+    conv_1k = Conv1D(filters=64, kernel_size=1, padding='same', kernel_initializer='he_normal')(merge_1)
+    conv_2k = Conv1D(filters=64, kernel_size=2, padding='same', kernel_initializer='he_normal')(merge_1)
+    conv_3k = Conv1D(filters=64, kernel_size=3, padding='same', kernel_initializer='he_normal')(merge_1)
+    conv_4k = Conv1D(filters=64, kernel_size=4, padding='same', kernel_initializer='he_normal')(merge_1)
+    conv_5k = Conv1D(filters=64, kernel_size=5, padding='same', kernel_initializer='he_normal')(merge_1)
+    conv_1k = PReLU()(conv_1k)
+    conv_2k = PReLU()(conv_2k)
+    conv_3k = PReLU()(conv_3k)
+    conv_4k = PReLU()(conv_4k)
+    conv_5k = PReLU()(conv_5k)
+    maxpool_1 = GlobalMaxPooling1D()(conv_1k)
+    maxpool_2 = GlobalMaxPooling1D()(conv_2k)
+    maxpool_3 = GlobalMaxPooling1D()(conv_3k)
+    maxpool_4 = GlobalMaxPooling1D()(conv_4k)
+    maxpool_5 = GlobalMaxPooling1D()(conv_5k)
+    fasttext_multi_filters = [maxpool_1, maxpool_2, maxpool_3, maxpool_4, maxpool_5]
     ## Concatente
     layer = concatenate(glove_multi_filters + fasttext_multi_filters)
     layer = Dropout(dropout)(layer)
@@ -283,14 +299,15 @@ def run_one_fold(fold):
 
         # callbacks
         val_auc = RocAucMetricCallback()
-        es = EarlyStopping(monitor=VAL_AUC, mode='max', patience=5)
+        es = EarlyStopping(monitor=VAL_AUC, mode='max', patience=6)
         bst_model_path = \
-            '../data/output/model/{0}fold_{1}run_{2}dp_{3}sdp_maxpool_cnn.h5'.format(
+            '../data/output/model/{0}fold_{1}run_{2}dp_{3}sdp_maxpool_deep_cnn.h5'.format(
                 fold, run, FLAGS.dp, FLAGS.sdp)
         mc = ModelCheckpoint(bst_model_path, save_best_only=True, save_weights_only=True)
         rp = ReduceLROnPlateau(
             monitor=VAL_AUC, mode='max',
-            patience=3,
+            patience=2,
+            cooldown=1,
             min_lr=0.0002,
             factor=np.sqrt(0.1),
             verbose=1
@@ -309,8 +326,8 @@ def run_one_fold(fold):
         print('\nFold {0} run {1} best val score : {2}'.format(fold, run, bst_val_score))
 
         # predict
-        preds_test += model.predict(X_test, batch_size=256, verbose=1) / RUNS_IN_FOLD
-        preds_valid += model.predict(X_val, batch_size=256, verbose=1) / RUNS_IN_FOLD
+        preds_test += model.predict(X_test, batch_size=128, verbose=1) / RUNS_IN_FOLD
+        preds_valid += model.predict(X_val, batch_size=128, verbose=1) / RUNS_IN_FOLD
         print('\nFold {0} run {1} done'.format(fold, run))
 
         del model
@@ -323,7 +340,7 @@ def run_one_fold(fold):
     for idx, label in enumerate(label_candidates):
         df_preds_test[label] = preds_test[idx]
     df_preds_test.to_csv(
-        '../data/output/preds/maxpool_cnn/{0}/{1}/{2}fold_test.csv'.format(FLAGS.dp, FLAGS.sdp, fold), index=False)
+        '../data/output/preds/maxpool_deep_cnn/{0}/{1}/{2}fold_test.csv'.format(FLAGS.dp, FLAGS.sdp, fold), index=False)
 
     preds_valid = preds_valid.T
     df_preds_val = pd.DataFrame()
@@ -331,7 +348,7 @@ def run_one_fold(fold):
     for idx, label in enumerate(label_candidates):
         df_preds_val[label] = preds_valid[idx]
     df_preds_val.to_csv(
-        '../data/output/preds/maxpool_cnn/{0}/{1}/{2}fold_valid.csv'.format(FLAGS.dp, FLAGS.sdp, fold), index=False)
+        '../data/output/preds/maxpool_deep_cnn/{0}/{1}/{2}fold_valid.csv'.format(FLAGS.dp, FLAGS.sdp, fold), index=False)
 
 
 if __name__ == '__main__':

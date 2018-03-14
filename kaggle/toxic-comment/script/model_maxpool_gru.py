@@ -21,6 +21,8 @@ from keras.layers import Bidirectional
 from keras.layers import SpatialDropout1D
 from keras.layers import GlobalMaxPooling1D, GlobalAveragePooling1D
 from keras.layers import concatenate
+from keras.layers import PReLU
+from keras.layers import BatchNormalization
 
 from keras.models import Model
 from keras.optimizers import Nadam
@@ -84,7 +86,12 @@ def get_fitted_tokenizer(df_train, df_test):
 
 def get_padded_sequence(tokenizer, texts):
     sequences = tokenizer.texts_to_sequences(texts)
-    padded_sequence = pad_sequences(sequences, maxlen=MAX_SEQUENCE_LENGTH)
+    padded_sequence = pad_sequences(
+        sequences,
+        padding='post',
+        truncating='post',
+        maxlen=MAX_SEQUENCE_LENGTH
+    )
     return padded_sequence
 
 
@@ -124,7 +131,7 @@ def get_embedding_lookup_table(word_index, glove_path, embedding_dim):
     return embedding_lookup_table
 
 
-def get_model(embedding_lookup_table, spatial_dropout):
+def get_model(embedding_lookup_table, spatial_dropout, dropout):
     input_layer = Input(shape=(MAX_SEQUENCE_LENGTH,), dtype='int32')
     embedding_layer = Embedding(
         input_dim=embedding_lookup_table.shape[0],
@@ -135,10 +142,17 @@ def get_model(embedding_lookup_table, spatial_dropout):
     layer = embedding_layer
     layer = SpatialDropout1D(spatial_dropout)(layer)
     print('spatial dropout : {0}'.format(spatial_dropout))
+    dropout = dropout - 0.002 + np.random.rand() * 0.004
+    print('dropout : {0}'.format(dropout))
     layer = Bidirectional(CuDNNGRU(units=80, return_sequences=True))(layer)
     layer_max = GlobalMaxPooling1D()(layer)
     layer_avg = GlobalAveragePooling1D()(layer)
     layer = concatenate([layer_avg, layer_max])
+    layer = Dropout(dropout)(layer)
+    layer = Dense(400, kernel_initializer='he_normal')(layer)
+    layer = PReLU()(layer)
+    layer = BatchNormalization()(layer)
+    layer = Dropout(dropout)(layer)
     output_layer = Dense(6, activation='sigmoid')(layer)
     model = Model(inputs=input_layer, outputs=output_layer)
     model.compile(loss='binary_crossentropy', optimizer=Nadam(), metrics=['acc'])
@@ -199,16 +213,24 @@ def run_one_fold(fold):
         print('\nFold {0} run {1} begin'.format(fold, run))
 
         # model
-        model = get_model(embedding_lookup_table, float(FLAGS.sdp))
+        model = get_model(embedding_lookup_table, float(FLAGS.sdp), float(FLAGS.dp))
         # print(model.summary())
 
         # callbacks
         val_auc = RocAucMetricCallback()
         es = EarlyStopping(monitor=VAL_AUC, mode='max', patience=3)
         bst_model_path = \
-            '../data/output/model/{0}fold_{1}run_{2}sdp_maxpool_gru.h5'.format(
-                fold, run, FLAGS.sdp)
+            '../data/output/model/{0}fold_{1}run_{2}dp_{3}sdp_maxpool_gru.h5'.format(
+                fold, run, FLAGS.dp, FLAGS.sdp)
         mc = ModelCheckpoint(bst_model_path, save_best_only=True, save_weights_only=True)
+        rp = ReduceLROnPlateau(
+            monitor=VAL_AUC, mode='max',
+            patience=2,
+            cooldown=1,
+            min_lr=0.0002,
+            factor=np.sqrt(0.1),
+            verbose=1
+        )
 
         # train
         hist = model.fit(
@@ -217,15 +239,15 @@ def run_one_fold(fold):
             epochs=EPOCHS,
             batch_size=BATCH_SIZE,
             shuffle=True,
-            callbacks=[val_auc, es, mc]
+            callbacks=[val_auc, es, mc, rp]
         )
         model.load_weights(bst_model_path)
         bst_val_score = max(hist.history[VAL_AUC])
         print('\nFold {0} run {1} best val score : {2}'.format(fold, run, bst_val_score))
 
         # predict
-        preds_test += model.predict(X_test, batch_size=1024, verbose=1) / RUNS_IN_FOLD
-        preds_valid += model.predict(X_val, batch_size=1024, verbose=1) / RUNS_IN_FOLD
+        preds_test += model.predict(X_test, batch_size=512, verbose=1) / RUNS_IN_FOLD
+        preds_valid += model.predict(X_val, batch_size=512, verbose=1) / RUNS_IN_FOLD
         print('\nFold {0} run {1} done'.format(fold, run))
 
         del model
@@ -238,7 +260,7 @@ def run_one_fold(fold):
     for idx, label in enumerate(label_candidates):
         df_preds_test[label] = preds_test[idx]
     df_preds_test.to_csv(
-        '../data/output/preds/maxpool_gru/{0}/{1}fold_test.csv'.format(FLAGS.sdp, fold), index=False)
+        '../data/output/preds/maxpool_gru/{0}/{1}/{2}fold_test.csv'.format(FLAGS.dp, FLAGS.sdp, fold), index=False)
 
     preds_valid = preds_valid.T
     df_preds_val = pd.DataFrame()
@@ -246,12 +268,13 @@ def run_one_fold(fold):
     for idx, label in enumerate(label_candidates):
         df_preds_val[label] = preds_valid[idx]
     df_preds_val.to_csv(
-        '../data/output/preds/maxpool_gru/{0}/{1}fold_valid.csv'.format(FLAGS.sdp, fold), index=False)
+        '../data/output/preds/maxpool_gru/{0}/{1}/{2}fold_valid.csv'.format(FLAGS.dp, FLAGS.sdp, fold), index=False)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--fold', type=str, default='0', help='train on which fold')
-    parser.add_argument('--sdp', type=str, default='0.3', help='spatial dropout')
+    parser.add_argument('--dp', type=str, default='0.3', help='dropout')
+    parser.add_argument('--sdp', type=str, default='0.35', help='spatial dropout')
     FLAGS, _ = parser.parse_known_args()
     np.random.seed(int(FLAGS.fold))
     run_one_fold(FLAGS.fold)

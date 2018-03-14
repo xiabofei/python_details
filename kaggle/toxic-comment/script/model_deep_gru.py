@@ -35,6 +35,7 @@ from comm_preprocessing import toxicIndicator_transformers
 
 
 from attlayer import AttentionWeightedAverage
+from attention_layer import Attention
 
 from roc_auc_metric import RocAucMetricCallback
 from roc_auc_metric import VAL_AUC
@@ -87,8 +88,8 @@ def get_padded_sequence(tokenizer, texts):
     sequences = tokenizer.texts_to_sequences(texts)
     padded_sequence = pad_sequences(
         sequences,
-        padding='post',
-        truncating='post',
+        # padding='post',
+        # truncating='post',
         maxlen=MAX_SEQUENCE_LENGTH
     )
     return padded_sequence

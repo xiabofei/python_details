@@ -90,8 +90,8 @@ def get_padded_sequence(tokenizer, texts):
     sequences = tokenizer.texts_to_sequences(texts)
     padded_sequence = pad_sequences(
         sequences,
-        padding='post',
-        truncating='post',
+        # padding='post',
+        # truncating='post',
         maxlen=MAX_SEQUENCE_LENGTH
     )
     return padded_sequence
