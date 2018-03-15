@@ -44,6 +44,8 @@ NUM_OF_LABEL = 6
 EPOCHS = 30
 BATCH_SIZE = 128
 
+PRE_OR_POST = 'pre'
+
 from ipdb import set_trace as st
 import gc
 
@@ -79,16 +81,23 @@ def get_fitted_tokenizer(df_train, df_test):
     return tokenizer
 
 
-def get_padded_sequence(tokenizer, texts):
+def get_padded_pre_sequence(tokenizer, texts):
     sequences = tokenizer.texts_to_sequences(texts)
     padded_sequence = pad_sequences(
         sequences,
-        # padding='post',
-        # truncating='post',
         maxlen=MAX_SEQUENCE_LENGTH
     )
     return padded_sequence
 
+def get_padded_post_sequence(tokenizer, texts):
+    sequences = tokenizer.texts_to_sequences(texts)
+    padded_sequence = pad_sequences(
+        sequences,
+        padding='post',
+        truncating='post',
+        maxlen=MAX_SEQUENCE_LENGTH
+    )
+    return padded_sequence
 
 def get_embedding_lookup_table(word_index, glove_path, embedding_dim):
     def _get_glove_embedding_index(path):
@@ -184,22 +193,35 @@ def run_one_fold(fold):
     # read in fold data
     df_trn, df_val = read_data_in_fold(fold)
 
-    # prepare data
-    X_test = get_padded_sequence(tokenizer, df_test[COMMENT_COL].astype('str').values.tolist())
+    # prepare data : pre truncating and post truncating
+    X_test_pre = get_padded_pre_sequence(tokenizer, df_test[COMMENT_COL].astype('str').values.tolist())
+    X_test_post = get_padded_post_sequence(tokenizer, df_test[COMMENT_COL].astype('str').values.tolist())
     id_test = df_test[ID_COL].values.tolist()
-    print('Test data shape {0}'.format(X_test.shape))
+    print('Test data pre shape {0}'.format(X_test_pre.shape))
+    print('Test data post shape {0}'.format(X_test_post.shape))
 
-    X_trn = get_padded_sequence(tokenizer, df_trn[COMMENT_COL].astype('str').values.tolist())
-    y_trn = df_trn[label_candidates].values
-    print('Fold {0} train data shape {1} '.format(fold, X_trn.shape))
+    if PRE_OR_POST=='pre':
+        X_trn = get_padded_pre_sequence(tokenizer, df_trn[COMMENT_COL].astype('str').values.tolist())
+        y_trn = df_trn[label_candidates].values
+        print('Fold {0} train data pre shape {1} '.format(fold, X_trn.shape))
+        X_val = get_padded_pre_sequence(tokenizer, df_val[COMMENT_COL].astype('str').values.tolist())
+        y_val = df_val[label_candidates].values
+        id_val = df_val[ID_COL].values.tolist()
+        print('Fold {0} valid data pre shape {1} '.format(fold, X_val.shape))
 
-    X_val = get_padded_sequence(tokenizer, df_val[COMMENT_COL].astype('str').values.tolist())
-    y_val = df_val[label_candidates].values
-    id_val = df_val[ID_COL].values.tolist()
-    print('Fold {0} valid data shape {1} '.format(fold, X_val.shape))
+    if PRE_OR_POST=='post':
+        X_trn = get_padded_post_sequence(tokenizer, df_trn[COMMENT_COL].astype('str').values.tolist())
+        y_trn = df_trn[label_candidates].values
+        print('Fold {0} train data post shape {1} '.format(fold, X_trn.shape))
+        X_val = get_padded_post_sequence(tokenizer, df_val[COMMENT_COL].astype('str').values.tolist())
+        y_val = df_val[label_candidates].values
+        id_val = df_val[ID_COL].values.tolist()
+        print('Fold {0} valid data post shape {1} '.format(fold, X_val.shape))
 
     # preds result array
-    preds_test = np.zeros((X_test.shape[0], NUM_OF_LABEL))
+    preds_test_pre = np.zeros((X_test_pre.shape[0], NUM_OF_LABEL))
+    preds_test_post = np.zeros((X_test_post.shape[0], NUM_OF_LABEL))
+    assert preds_test_pre.shape and preds_test_post.shape, 'test data pre and post shape not match'
     preds_valid = np.zeros((X_val.shape[0], NUM_OF_LABEL))
 
     # train model
@@ -240,7 +262,11 @@ def run_one_fold(fold):
         print('\nFold {0} run {1} best val score : {2}'.format(fold, run, bst_val_score))
 
         # predict
-        preds_test += model.predict(X_test, batch_size=1024, verbose=1) / RUNS_IN_FOLD
+        print('\nFold {0} run {1} predict on test pre truncating'.format(fold, run))
+        preds_test_pre += model.predict(X_test_pre, batch_size=1024, verbose=1) / RUNS_IN_FOLD
+        print('\nFold {0} run {1} predict on test post truncating'.format(fold, run))
+        preds_test_post += model.predict(X_test_post, batch_size=1024, verbose=1) / RUNS_IN_FOLD
+        print('\nFold {0} run {1} predict on valid'.format(fold, run))
         preds_valid += model.predict(X_val, batch_size=1024, verbose=1) / RUNS_IN_FOLD
         print('\nFold {0} run {1} done'.format(fold, run))
 
@@ -248,26 +274,28 @@ def run_one_fold(fold):
         gc.collect()
 
     # record preds result
-    preds_test = preds_test.T
+    preds_test_avg = ( preds_test_pre + preds_test_post ) / 2.0
+    preds_test = preds_test_avg.T
     df_preds_test = pd.DataFrame()
     df_preds_test[ID_COL] = id_test
     for idx, label in enumerate(label_candidates):
         df_preds_test[label] = preds_test[idx]
-    df_preds_test.to_csv('../data/output/preds/deep_gru/{0}/{1}/{2}fold_test.csv'.format(FLAGS.dp, FLAGS.sdp, fold), index=False)
+    df_preds_test.to_csv(
+        '../data/output/preds/deep_gru/{0}/{1}/{2}fold_test.csv'.format(FLAGS.dp, FLAGS.sdp, fold), index=False)
 
     preds_valid = preds_valid.T
     df_preds_val = pd.DataFrame()
     df_preds_val[ID_COL] = id_val
     for idx, label in enumerate(label_candidates):
         df_preds_val[label] = preds_valid[idx]
-    # df_preds_val.to_csv('../data/output/preds/fasttext_gru/{0}fold_valid.csv'.format(fold), index=False)
-    df_preds_val.to_csv('../data/output/preds/deep_gru/{0}/{1}/{2}fold_valid.csv'.format(FLAGS.dp, FLAGS.sdp, fold), index=False)
+    df_preds_val.to_csv(
+        '../data/output/preds/deep_gru/{0}/{1}/{2}fold_valid.csv'.format(FLAGS.dp, FLAGS.sdp, fold), index=False)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--fold', type=str, default='0', help='train on which fold')
     parser.add_argument('--dp', type=str, default='0.375', help='dropout')
-    parser.add_argument('--sdp', type=str, default='0.3', help='spatial dropout')
+    parser.add_argument('--sdp', type=str, default='0.4', help='spatial dropout')
     FLAGS, _ = parser.parse_known_args()
     np.random.seed(int(FLAGS.fold))
     run_one_fold(FLAGS.fold)

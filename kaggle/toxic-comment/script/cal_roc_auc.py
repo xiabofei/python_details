@@ -10,25 +10,8 @@ from ipdb import set_trace as st
 
 n_classes = len(label_candidates)
 
-# root_dir = '../data/output/preds/glove_gru/0.3/'
-# root_dir = '../data/output/preds/glove_gru/0.35/'
-root_dir = '../data/output/preds/glove_gru/0.375/0.2/'
-# root_dir = '../data/output/preds/glove_gru/0.4/'
-# root_dir = '../data/output/preds/glove_gru/0.45/'
-# root_dir = '../data/output/preds/glove_gru/0.5/'
-# root_dir = '../data/output/preds/glove_gru/0.55/'
-# root_dir = '../data/output/preds/glove_gru/0.6/'
-# root_dir = '../data/output/preds/glove_cnn/0.35/'
-# root_dir = '../data/output/preds/glove_cnn/0.4/'
-# root_dir = '../data/output/preds/glove_cnn/0.45/'
-# root_dir = '../data/output/preds/glove_cnn/0.5/'
-# root_dir = '../data/output/preds/glove_cnn/0.55/'
-# root_dir = '../data/output/preds/glove_cnn/0.6/'
-#root_dir = '../data/output/preds/glove_cnn/0.625/'
-# root_dir = '../data/output/preds/gbdt/'
-# root_dir = '../data/output/preds/lr/'
-#root_dir = '/home/baibing/Kaggle/Toxic/data/output/stack_ensemble/'
-#root_dir = '../data/output/preds/cnn_rnn/0.2/'
+#root_dir = '../data/output/preds/deep_gru/no_stopwords/add_star/0.4/'
+root_dir = '../data/output/preds/deep_gru/no_stopwords/avg_ensemble/'
 
 # get id and true label
 df_train = pd.read_csv('../data/input/train.csv')

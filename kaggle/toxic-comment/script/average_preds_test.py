@@ -5,7 +5,8 @@ from comm_preprocessing import ID_COL
 import pandas as pd
 import zipfile
 
-root_dir = '../data/output/preds/glove_gru/'
+#root_dir = '../data/output/preds/deep_gru/no_stopwords/add_star/0.4/'
+root_dir = '../data/output/preds/deep_gru/no_stopwords/tta/0.4/'
 
 df_0fold_test = pd.read_csv(root_dir+'0fold_test.csv')
 df_average_submit = pd.DataFrame()

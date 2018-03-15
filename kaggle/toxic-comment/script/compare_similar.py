@@ -4,11 +4,16 @@ from data_split import label_candidates
 import pandas as pd
 
 submit_candidates = [
-    ('../data/output/preds/deep_gru/no_stopwords/lb9865_cv99109_post/avg_submit.csv', 'deep_gru_post'),
-    ('../data/output/preds/deep_gru/no_stopwords/lb9866_cv9905_pre/avg_submit.csv', 'deep_gru_pre'),
-    # ('../data/output/preds/deep_gru/no_stopwords/fasttext/lb9864_cv9907/avg_submit.csv', 'fasttext_deep_gru'),
-    ('../data/output/preds/skip_gru/no_stopwords/lb9864_cv99029/avg_submit.csv', 'skip_gru'),
-    ('../data/output/preds/maxpool_gru/no_stopwords/lb9864_cv99027/avg_submit.csv', 'maxpool_gru'),
+    ('../data/output/preds/deep_gru/no_stopwords/lb9869_cv99053_pre/avg_submit.csv', 'fc_pre'),
+    # ('../data/output/preds/deep_gru/no_stopwords/add_star/lb9868_cv99023_pre/avg_submit.csv', 'pre_fc_star'),
+    ('../data/output/preds/deep_gru/no_stopwords/lb9867_cv9908_post/avg_submit.csv', 'fc_post'),
+    # ('../data/output/preds/deep_gru/no_stopwords/lb9866_cv9905_pre/avg_submit.csv', 'pre'),
+    # ('../data/output/preds/deep_gru/no_stopwords/lb9865_cv99109_post/avg_submit.csv', 'post'),
+    ('../data/output/preds/deep_gru/no_stopwords/fasttext/lb9864_cv9911_post/avg_submit.csv', 'ft_post'),
+    ('../data/output/preds/deep_gru/no_stopwords/fasttext/lb9864_cv9907_pre/avg_submit.csv', 'ft_pre'),
+    # ('../data/output/preds/skip_gru/no_stopwords/lb9864_cv99029/avg_submit.csv', 'skip_gru'),
+    ('../data/output/preds/maxpool_gru/no_stopwords/lb9864_cv99027_pre/avg_submit.csv', 'mp_pre'),
+    ('../data/output/preds/maxpool_gru/no_stopwords/lb9863_cv9907_post/avg_submit.csv', 'mp_post'),
     # ('../data/output/preds/gru_conv1d/lb9862_cv99011/avg_submit.csv', 'gru_conv1d'),
     # ('../data/output/preds/maxpool_cnn/with_stopwords/lb9852_cv98964/avg_submit.csv', 'maxpool_cnn'),
     # ('../data/output/preds/lr/avg_submit.csv', 'lr'),
@@ -37,5 +42,6 @@ for df in df_corr[1:]:
     df_corr[0] += df
 df_avgCorr = df_corr[0] / len(label_candidates)
 
+print('average correlation : ')
 print(df_avgCorr)
 
