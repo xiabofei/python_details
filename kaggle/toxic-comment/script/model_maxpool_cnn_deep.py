@@ -16,15 +16,12 @@ from keras.layers import Conv1D
 from keras.layers import PReLU
 from keras.layers import LocallyConnected1D
 from keras.layers import GlobalMaxPooling1D
-from keras.layers import Activation
 from keras.layers import MaxPooling1D
 from keras.layers import Input
 from keras.layers import Dropout
 from keras.layers import BatchNormalization
 from keras.layers import SpatialDropout1D
 from keras.layers import concatenate
-from attlayer import AttentionWeightedAverage
-from keras.layers import Flatten
 
 from keras.models import Model
 from keras.optimizers import Nadam
@@ -36,17 +33,18 @@ from comm_preprocessing import data_comm_preprocessed_dir
 from comm_preprocessing import COMMENT_COL, ID_COL
 from comm_preprocessing import toxicIndicator_transformers
 
+from attlayer import AttentionWeightedAverage
+
 from roc_auc_metric import RocAucMetricCallback
 from roc_auc_metric import VAL_AUC
 
 MAX_NUM_WORDS = 283000  # keras Tokenizer keep MAX_NUM_WORDS-1 words and left index 0 for null word
-# MAX_NUM_WORDS = 100000  # keras Tokenizer keep MAX_NUM_WORDS-1 words and left index 0 for null word
 MAX_SEQUENCE_LENGTH = 200
 RUNS_IN_FOLD = 5
 NUM_OF_LABEL = 6
 
-EPOCHS = 30
-BATCH_SIZE = 128
+EPOCHS = 40
+BATCH_SIZE = 64
 
 from ipdb import set_trace as st
 import gc
@@ -90,15 +88,31 @@ def get_padded_sequence(tokenizer, texts):
     sequences = tokenizer.texts_to_sequences(texts)
     padded_sequence = pad_sequences(
         sequences,
-        #padding='post',
-        #truncating='post',
+        padding='post',
+        truncating='post',
         maxlen=MAX_SEQUENCE_LENGTH
     )
     return padded_sequence
 
 
-def get_embedding_lookup_table(word_index, embedding_path, embedding_dim):
-    def _get_embedding_index(path):
+def get_embedding_lookup_table(word_index, glove_path, fasttext_path, embedding_dim):
+    def _get_glove_embedding_index(path):
+        ret = dict()
+        for l in open(path):
+            values = l.split(' ')
+            word = values[0]
+            vector = asarray(values[1:], dtype='float32')
+            ret[word] = vector
+        print('total {0} word vectors'.format(len(ret)))
+        # add toxic transformer vector
+        for toxic, transformers in toxicIndicator_transformers.items():
+            if toxic in ret.keys():
+                for transformer in transformers:
+                    ret[transformer] = ret[toxic]
+        print('total {0} word vectors after add toxic indicator transformers'.format(len(ret)))
+        return ret
+
+    def _get_fasttext_embedding_index(path):
         ret = dict()
         for l in open(path):
             values = l.strip().split(' ')
@@ -115,62 +129,88 @@ def get_embedding_lookup_table(word_index, embedding_path, embedding_dim):
         return ret
 
     nb_words = min(MAX_NUM_WORDS, len(word_index))
+    if mode == 'try':
+        return np.zeros((nb_words, embedding_dim)), np.zeros((nb_words, embedding_dim))
 
     print('! index : {0}'.format(word_index['!']))
     print('? index : {0}'.format(word_index['?']))
 
-    # get word vector
-    embedding_lookup_table = np.zeros((nb_words, embedding_dim))
-    if mode == 'try':
-        return embedding_lookup_table
-    embedding_index = _get_embedding_index(embedding_path)
-
-
+    # get glove word vector
+    glove_embedding_index = _get_glove_embedding_index(glove_path)
+    glove_embedding_lookup_table = np.zeros((nb_words, embedding_dim))
     for word, index in word_index.items():
         if index >= MAX_NUM_WORDS:
             continue
-        vector = embedding_index.get(word)
+        vector = glove_embedding_index.get(word)
         if vector is not None:
-            embedding_lookup_table[index] = vector
-    print('null word embeddings : {0}'.format(np.sum(np.sum(embedding_lookup_table, axis=1) == 0)))
-    del embedding_index
+            glove_embedding_lookup_table[index] = vector
+    print('glove null word embeddings : {0}'.format(
+        np.sum(np.sum(glove_embedding_lookup_table, axis=1) == 0)))
+    del glove_embedding_index
     gc.collect()
 
-    return embedding_lookup_table
+    # get fasttext word vector
+    fasttext_embedding_index = _get_fasttext_embedding_index(fasttext_path)
+    fasttext_embedding_lookup_table = np.zeros((nb_words, embedding_dim))
+    for word, index in word_index.items():
+        if index >= MAX_NUM_WORDS:
+            continue
+        vector = fasttext_embedding_index.get(word)
+        if vector is not None:
+            fasttext_embedding_lookup_table[index] = vector
+    print('fasttext null word embeddings : {0}'.format(
+        np.sum(np.sum(fasttext_embedding_lookup_table, axis=1) == 0)))
+    del fasttext_embedding_index
+    gc.collect()
+
+    return glove_embedding_lookup_table, fasttext_embedding_lookup_table
 
 
-def get_model(embedding_lookup_table, dropout, spatialDropout):
+def get_model(glove_embedding_lookup_table, fasttext_embedding_lookup_table, dropout, spatialDropout):
     print('dropout : {0}'.format(dropout))
     print('spatial dropout : {0}'.format(spatialDropout))
     input_layer = Input(shape=(MAX_SEQUENCE_LENGTH,), dtype='int32')
 
-    embedding_layer = Embedding(
-        input_dim=embedding_lookup_table.shape[0],
-        output_dim=embedding_lookup_table.shape[1],
-        weights=[embedding_lookup_table],
+    ## Chanel 1 : glove embedding
+    glove_embedding_layer = Embedding(
+        input_dim=glove_embedding_lookup_table.shape[0],
+        output_dim=glove_embedding_lookup_table.shape[1],
+        weights=[glove_embedding_lookup_table],
         trainable=False
     )(input_layer)
-    embedding_layer = SpatialDropout1D(spatialDropout)(embedding_layer)
-
-    # First level conv
-    conv_1k = Conv1D(filters=150, kernel_size=1, padding='same', activation='relu')(embedding_layer)
-    conv_2k = Conv1D(filters=150, kernel_size=2, padding='same', activation='relu')(embedding_layer)
-    conv_3k = Conv1D(filters=150, kernel_size=3, padding='same', activation='relu')(embedding_layer)
-    merge_1 = concatenate([conv_1k, conv_2k, conv_3k])
-
-    # Second level conv and max pooling
-    conv_1k = Conv1D(filters=64, kernel_size=1, padding='same', activation='relu')(merge_1)
-    conv_2k = Conv1D(filters=64, kernel_size=2, padding='same', activation='relu')(merge_1)
-    conv_3k = Conv1D(filters=64, kernel_size=3, padding='same', activation='relu')(merge_1)
-    conv_4k = Conv1D(filters=64, kernel_size=4, padding='same', activation='relu')(merge_1)
-    conv_5k = Conv1D(filters=64, kernel_size=5, padding='same', activation='relu')(merge_1)
-    maxpool_1 = GlobalMaxPooling1D()(conv_1k)
-    maxpool_2 = GlobalMaxPooling1D()(conv_2k)
-    maxpool_3 = GlobalMaxPooling1D()(conv_3k)
-    maxpool_4 = GlobalMaxPooling1D()(conv_4k)
-    maxpool_5 = GlobalMaxPooling1D()(conv_5k)
-
-    layer = concatenate([maxpool_1, maxpool_2, maxpool_3, maxpool_4, maxpool_5])
+    glove_embedding_layer = SpatialDropout1D(spatialDropout)(glove_embedding_layer)
+    # kernel_sizes = [2, 3, 4]
+    kernel_sizes = [1, 2, 3]
+    print('kernel size : {0}'.format(kernel_sizes[0]))
+    num_filters = 128
+    glove_multi_filters = []
+    for kernel_size in kernel_sizes:
+        conv1d = Conv1D(
+            filters=num_filters, kernel_size=kernel_size, activation='relu')(glove_embedding_layer)
+        bn = BatchNormalization()(conv1d)
+        max_pool = GlobalMaxPooling1D()(bn)
+        glove_multi_filters.append(max_pool)
+    ## Chanel 2 : fasttext embedding
+    fasttext_embedding_layer = Embedding(
+        input_dim=fasttext_embedding_lookup_table.shape[0],
+        output_dim=fasttext_embedding_lookup_table.shape[1],
+        weights=[fasttext_embedding_lookup_table],
+        trainable=False
+    )(input_layer)
+    fasttext_embedding_layer = SpatialDropout1D(spatialDropout)(fasttext_embedding_layer)
+    # kernel_sizes = [2, 3, 4]
+    kernel_sizes = [1, 2, 3]
+    print('kernel size : {0}'.format(kernel_sizes[0]))
+    num_filters = 128
+    fasttext_multi_filters = []
+    for kernel_size in kernel_sizes:
+        conv1d = Conv1D(
+            filters=num_filters, kernel_size=kernel_size, activation='tanh')(fasttext_embedding_layer)
+        bn = BatchNormalization()(conv1d)
+        max_pool = GlobalMaxPooling1D()(bn)
+        fasttext_multi_filters.append(max_pool)
+    ## Concatente
+    layer = concatenate(glove_multi_filters + fasttext_multi_filters)
     layer = Dropout(dropout)(layer)
     layer = Dense(400, kernel_initializer='he_normal')(layer)
     layer = PReLU()(layer)
@@ -178,7 +218,7 @@ def get_model(embedding_lookup_table, dropout, spatialDropout):
     layer = Dropout(dropout)(layer)
     output_layer = Dense(6, activation='sigmoid')(layer)
     model = Model(inputs=input_layer, outputs=output_layer)
-    model.compile(loss='binary_crossentropy', optimizer=Nadam(clipnorm=0.7), metrics=['acc'])
+    model.compile(loss='binary_crossentropy', optimizer=Nadam(), metrics=['acc'])
     return model
 
 
@@ -203,9 +243,10 @@ def run_one_fold(fold):
 
     # get embedding lookup table
     embedding_dim = 300
-    # embedding_path = '../data/input/glove_dir/glove.840B.300d.txt'
-    embedding_path = '../data/input/fasttext_dir/fasttext.300d.txt'
-    embedding_lookup_table = get_embedding_lookup_table(word_index, embedding_path, embedding_dim)
+    glove_path = '../data/input/glove_dir/glove.840B.300d.txt'
+    fasttext_path = '../data/input/fasttext_dir/fasttext.300d.txt'
+    glove_embedding_lookup_table, fasttext_embedding_lookup_table = \
+        get_embedding_lookup_table(word_index, glove_path, fasttext_path, embedding_dim)
 
     # read in fold data
     df_trn, df_val = read_data_in_fold(fold)
@@ -233,7 +274,8 @@ def run_one_fold(fold):
         print('\nFold {0} run {1} begin'.format(fold, run))
 
         # model
-        model = get_model(embedding_lookup_table, float(FLAGS.dp), float(FLAGS.sdp))
+        model = get_model(
+            glove_embedding_lookup_table, fasttext_embedding_lookup_table, float(FLAGS.dp), float(FLAGS.sdp))
         # print(model.summary())
 
         if mode == 'try':
@@ -243,15 +285,14 @@ def run_one_fold(fold):
         val_auc = RocAucMetricCallback()
         es = EarlyStopping(monitor=VAL_AUC, mode='max', patience=5)
         bst_model_path = \
-            '../data/output/model/{0}fold_{1}run_{2}dp_{3}sdp_pool_cnn.h5'.format(
+            '../data/output/model/{0}fold_{1}run_{2}dp_{3}sdp_maxpool_cnn.h5'.format(
                 fold, run, FLAGS.dp, FLAGS.sdp)
         mc = ModelCheckpoint(bst_model_path, save_best_only=True, save_weights_only=True)
         rp = ReduceLROnPlateau(
             monitor=VAL_AUC, mode='max',
-            patience=2,
-            cooldown=1,
+            patience=3,
+            min_lr=0.0002,
             factor=np.sqrt(0.1),
-            min_lr=0.0006,
             verbose=1
         )
         # train
@@ -282,7 +323,7 @@ def run_one_fold(fold):
     for idx, label in enumerate(label_candidates):
         df_preds_test[label] = preds_test[idx]
     df_preds_test.to_csv(
-        '../data/output/preds/pool_cnn/{0}/{1}/{2}fold_test.csv'.format(FLAGS.dp, FLAGS.sdp, fold), index=False)
+        '../data/output/preds/maxpool_cnn/{0}/{1}/{2}fold_test.csv'.format(FLAGS.dp, FLAGS.sdp, fold), index=False)
 
     preds_valid = preds_valid.T
     df_preds_val = pd.DataFrame()
@@ -290,13 +331,13 @@ def run_one_fold(fold):
     for idx, label in enumerate(label_candidates):
         df_preds_val[label] = preds_valid[idx]
     df_preds_val.to_csv(
-        '../data/output/preds/pool_cnn/{0}/{1}/{2}fold_valid.csv'.format(FLAGS.dp, FLAGS.sdp, fold), index=False)
+        '../data/output/preds/maxpool_cnn/{0}/{1}/{2}fold_valid.csv'.format(FLAGS.dp, FLAGS.sdp, fold), index=False)
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--fold', type=str, default='0', help='train on which fold')
-    parser.add_argument('--dp', type=str, default='0.35', help='dropout')
+    parser.add_argument('--dp', type=str, default='0.55', help='dropout')
     parser.add_argument('--sdp', type=str, default='0.4', help='spatial dropout')
     FLAGS, _ = parser.parse_known_args()
     run_one_fold(FLAGS.fold)

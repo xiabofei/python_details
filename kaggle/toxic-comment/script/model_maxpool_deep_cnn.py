@@ -44,7 +44,7 @@ RUNS_IN_FOLD = 5
 NUM_OF_LABEL = 6
 
 EPOCHS = 40
-BATCH_SIZE = 128
+BATCH_SIZE = 64
 
 from ipdb import set_trace as st
 import gc
@@ -187,13 +187,12 @@ def get_model(glove_embedding_lookup_table, fasttext_embedding_lookup_table, dro
     conv_2k = Conv1D(filters=64, kernel_size=2, padding='same', activation='relu')(merge_1)
     conv_3k = Conv1D(filters=64, kernel_size=3, padding='same', activation='relu')(merge_1)
     conv_4k = Conv1D(filters=64, kernel_size=4, padding='same', activation='relu')(merge_1)
-    conv_5k = Conv1D(filters=64, kernel_size=5, padding='same', activation='relu')(merge_1)
     maxpool_1 = GlobalMaxPooling1D()(conv_1k)
     maxpool_2 = GlobalMaxPooling1D()(conv_2k)
     maxpool_3 = GlobalMaxPooling1D()(conv_3k)
     maxpool_4 = GlobalMaxPooling1D()(conv_4k)
-    maxpool_5 = GlobalMaxPooling1D()(conv_5k)
-    glove_multi_filters = [maxpool_1, maxpool_2, maxpool_3, maxpool_4, maxpool_5]
+    glove_multi_filters = [maxpool_1, maxpool_2, maxpool_3, maxpool_4]
+
     ## Fasttext embedding channel
     fasttext_embedding_layer = Embedding(
         input_dim=fasttext_embedding_lookup_table.shape[0],
@@ -202,33 +201,23 @@ def get_model(glove_embedding_lookup_table, fasttext_embedding_lookup_table, dro
         trainable=False
     )(input_layer)
     fasttext_embedding_layer = SpatialDropout1D(spatialDropout)(fasttext_embedding_layer)
-    conv_1k = Conv1D(filters=128, kernel_size=1, padding='same', kernel_initializer='he_normal')(fasttext_embedding_layer)
-    conv_2k = Conv1D(filters=128, kernel_size=2, padding='same', kernel_initializer='he_normal')(fasttext_embedding_layer)
-    conv_3k = Conv1D(filters=128, kernel_size=3, padding='same', kernel_initializer='he_normal')(fasttext_embedding_layer)
-    conv_1k = PReLU()(conv_1k)
-    conv_2k = PReLU()(conv_2k)
-    conv_3k = PReLU()(conv_3k)
+    conv_1k = Conv1D(filters=128, kernel_size=1, padding='same', activation='tanh')(fasttext_embedding_layer)
+    conv_2k = Conv1D(filters=128, kernel_size=2, padding='same', activation='tanh')(fasttext_embedding_layer)
+    conv_3k = Conv1D(filters=128, kernel_size=3, padding='same', activation='tanh')(fasttext_embedding_layer)
     merge_1 = concatenate([conv_1k, conv_2k, conv_3k])
-    conv_1k = Conv1D(filters=64, kernel_size=1, padding='same', kernel_initializer='he_normal')(merge_1)
-    conv_2k = Conv1D(filters=64, kernel_size=2, padding='same', kernel_initializer='he_normal')(merge_1)
-    conv_3k = Conv1D(filters=64, kernel_size=3, padding='same', kernel_initializer='he_normal')(merge_1)
-    conv_4k = Conv1D(filters=64, kernel_size=4, padding='same', kernel_initializer='he_normal')(merge_1)
-    conv_5k = Conv1D(filters=64, kernel_size=5, padding='same', kernel_initializer='he_normal')(merge_1)
-    conv_1k = PReLU()(conv_1k)
-    conv_2k = PReLU()(conv_2k)
-    conv_3k = PReLU()(conv_3k)
-    conv_4k = PReLU()(conv_4k)
-    conv_5k = PReLU()(conv_5k)
+    conv_1k = Conv1D(filters=64, kernel_size=1, padding='same', activation='tanh')(merge_1)
+    conv_2k = Conv1D(filters=64, kernel_size=2, padding='same', activation='tanh')(merge_1)
+    conv_3k = Conv1D(filters=64, kernel_size=3, padding='same', activation='tanh')(merge_1)
+    conv_4k = Conv1D(filters=64, kernel_size=4, padding='same', activation='tanh')(merge_1)
     maxpool_1 = GlobalMaxPooling1D()(conv_1k)
     maxpool_2 = GlobalMaxPooling1D()(conv_2k)
     maxpool_3 = GlobalMaxPooling1D()(conv_3k)
     maxpool_4 = GlobalMaxPooling1D()(conv_4k)
-    maxpool_5 = GlobalMaxPooling1D()(conv_5k)
-    fasttext_multi_filters = [maxpool_1, maxpool_2, maxpool_3, maxpool_4, maxpool_5]
+    fasttext_multi_filters = [maxpool_1, maxpool_2, maxpool_3, maxpool_4]
     ## Concatente
     layer = concatenate(glove_multi_filters + fasttext_multi_filters)
     layer = Dropout(dropout)(layer)
-    layer = Dense(400, kernel_initializer='he_normal')(layer)
+    layer = Dense(400, kernel_initializer='he_uniform')(layer)
     layer = PReLU()(layer)
     layer = BatchNormalization()(layer)
     layer = Dropout(dropout)(layer)

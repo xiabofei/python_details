@@ -4,16 +4,21 @@ from comm_preprocessing import ID_COL
 import pandas as pd
 
 candidates = [
-    # '../data/output/preds/maxpool_cnn/with_stopwords/lb9852_cv98956_pre/',
-    # '../data/output/preds/maxpool_cnn/with_stopwords/lb9854_cv99001_post/',
-    # '../data/output/preds/pool_cnn/lb9856_cv99042_post/',
-    # '../data/output/preds/pool_cnn/lb9859_cv99038_pre/',
+    ## rnn
     '../data/output/preds/deep_gru/no_stopwords/fasttext/lb9864_cv9911_post/',
-    # '../data/output/preds/deep_gru/no_stopwords/lb9867_cv9908_post/',
     '../data/output/preds/deep_gru/no_stopwords/lb9869_cv99053_pre/',
+    # '../data/output/preds/maxpool_gru/no_stopwords/lb9864_cv99027_pre/',
+    # '../data/output/preds/maxpool_gru/no_stopwords/lb9863_cv9907_post/',
+
+    ## cnn
+    # '../data/output/preds/pool_cnn_skip/fasttext/lb9861_cv99042_pre/',
+    # '../data/output/preds/pool_cnn/lb9859_cv99038_pre/',
+    # '../data/output/preds/maxpool_deep_cnn/lb9857_cv99053_post/',
+    # '../data/output/preds/maxpool_cnn/with_stopwords/lb9855_cv99035_post/',
+    # '../data/output/preds/maxpool_cnn/with_stopwords/lb9852_cv98956_pre/',
 ]
-# output_dir = '../data/output/preds/pool_cnn/avg_ensemble/'
-output_dir = '../data/output/preds/deep_gru/no_stopwords/avg_ensemble/'
+# output_dir = '../data/output/preds/avg_ensemble_cnn/'
+output_dir = '../data/output/preds/avg_ensemble_rnn/'
 
 # Average Valid (similar to more runs per fold)
 for k in range(K):

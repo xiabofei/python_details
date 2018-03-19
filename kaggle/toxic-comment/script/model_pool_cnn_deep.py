@@ -158,19 +158,25 @@ def get_model(embedding_lookup_table, dropout, spatialDropout):
     conv_3k = Conv1D(filters=150, kernel_size=3, padding='same', activation='relu')(embedding_layer)
     merge_1 = concatenate([conv_1k, conv_2k, conv_3k])
 
-    # Second level conv and max pooling
+    # Second level conv
     conv_1k = Conv1D(filters=64, kernel_size=1, padding='same', activation='relu')(merge_1)
     conv_2k = Conv1D(filters=64, kernel_size=2, padding='same', activation='relu')(merge_1)
     conv_3k = Conv1D(filters=64, kernel_size=3, padding='same', activation='relu')(merge_1)
     conv_4k = Conv1D(filters=64, kernel_size=4, padding='same', activation='relu')(merge_1)
     conv_5k = Conv1D(filters=64, kernel_size=5, padding='same', activation='relu')(merge_1)
+    merge_2 = concatenate([conv_1k, conv_2k, conv_3k, conv_4k, conv_5k])
+
+    # Thrid level conv and max pooling
+    conv_1k = Conv1D(filters=64, kernel_size=1, padding='same', activation='relu')(merge_2)
+    conv_2k = Conv1D(filters=64, kernel_size=2, padding='same', activation='relu')(merge_2)
+    conv_3k = Conv1D(filters=64, kernel_size=3, padding='same', activation='relu')(merge_2)
+    conv_4k = Conv1D(filters=64, kernel_size=4, padding='same', activation='relu')(merge_2)
     maxpool_1 = GlobalMaxPooling1D()(conv_1k)
     maxpool_2 = GlobalMaxPooling1D()(conv_2k)
     maxpool_3 = GlobalMaxPooling1D()(conv_3k)
     maxpool_4 = GlobalMaxPooling1D()(conv_4k)
-    maxpool_5 = GlobalMaxPooling1D()(conv_5k)
 
-    layer = concatenate([maxpool_1, maxpool_2, maxpool_3, maxpool_4, maxpool_5])
+    layer = concatenate([maxpool_1, maxpool_2, maxpool_3, maxpool_4])
     layer = Dropout(dropout)(layer)
     layer = Dense(400, kernel_initializer='he_normal')(layer)
     layer = PReLU()(layer)
@@ -178,7 +184,7 @@ def get_model(embedding_lookup_table, dropout, spatialDropout):
     layer = Dropout(dropout)(layer)
     output_layer = Dense(6, activation='sigmoid')(layer)
     model = Model(inputs=input_layer, outputs=output_layer)
-    model.compile(loss='binary_crossentropy', optimizer=Nadam(clipnorm=0.7), metrics=['acc'])
+    model.compile(loss='binary_crossentropy', optimizer=Nadam(), metrics=['acc'])
     return model
 
 
@@ -296,7 +302,7 @@ def run_one_fold(fold):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--fold', type=str, default='0', help='train on which fold')
-    parser.add_argument('--dp', type=str, default='0.35', help='dropout')
-    parser.add_argument('--sdp', type=str, default='0.4', help='spatial dropout')
+    parser.add_argument('--dp', type=str, default='0.3', help='dropout')
+    parser.add_argument('--sdp', type=str, default='0.35', help='spatial dropout')
     FLAGS, _ = parser.parse_known_args()
     run_one_fold(FLAGS.fold)

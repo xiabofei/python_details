@@ -11,7 +11,8 @@ from ipdb import set_trace as st
 n_classes = len(label_candidates)
 
 #root_dir = '../data/output/preds/deep_gru/no_stopwords/add_star/0.4/'
-root_dir = '../data/output/preds/deep_gru/no_stopwords/avg_ensemble/'
+#root_dir = '../data/output/preds/deep_gru/no_stopwords/avg_ensemble/'
+root_dir = '../data/output/preds/avg_ensemble_rnn/'
 
 # get id and true label
 df_train = pd.read_csv('../data/input/train.csv')

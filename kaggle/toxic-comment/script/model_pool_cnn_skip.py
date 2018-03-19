@@ -90,8 +90,8 @@ def get_padded_sequence(tokenizer, texts):
     sequences = tokenizer.texts_to_sequences(texts)
     padded_sequence = pad_sequences(
         sequences,
-        #padding='post',
-        #truncating='post',
+        # padding='post',
+        # truncating='post',
         maxlen=MAX_SEQUENCE_LENGTH
     )
     return padded_sequence
@@ -153,9 +153,12 @@ def get_model(embedding_lookup_table, dropout, spatialDropout):
     embedding_layer = SpatialDropout1D(spatialDropout)(embedding_layer)
 
     # First level conv
-    conv_1k = Conv1D(filters=150, kernel_size=1, padding='same', activation='relu')(embedding_layer)
-    conv_2k = Conv1D(filters=150, kernel_size=2, padding='same', activation='relu')(embedding_layer)
-    conv_3k = Conv1D(filters=150, kernel_size=3, padding='same', activation='relu')(embedding_layer)
+    conv_1k = Conv1D(filters=128, kernel_size=1, padding='same', activation='relu')(embedding_layer)
+    conv_2k = Conv1D(filters=128, kernel_size=2, padding='same', activation='relu')(embedding_layer)
+    conv_3k = Conv1D(filters=128, kernel_size=3, padding='same', activation='relu')(embedding_layer)
+    maxpool_0_1 = GlobalMaxPooling1D()(conv_1k)
+    maxpool_0_2 = GlobalMaxPooling1D()(conv_2k)
+    maxpool_0_3 = GlobalMaxPooling1D()(conv_3k)
     merge_1 = concatenate([conv_1k, conv_2k, conv_3k])
 
     # Second level conv and max pooling
@@ -170,7 +173,8 @@ def get_model(embedding_lookup_table, dropout, spatialDropout):
     maxpool_4 = GlobalMaxPooling1D()(conv_4k)
     maxpool_5 = GlobalMaxPooling1D()(conv_5k)
 
-    layer = concatenate([maxpool_1, maxpool_2, maxpool_3, maxpool_4, maxpool_5])
+    layer = concatenate(
+        [maxpool_0_1, maxpool_0_2, maxpool_0_3] + [maxpool_1, maxpool_2, maxpool_3, maxpool_4, maxpool_5])
     layer = Dropout(dropout)(layer)
     layer = Dense(400, kernel_initializer='he_normal')(layer)
     layer = PReLU()(layer)
@@ -178,7 +182,7 @@ def get_model(embedding_lookup_table, dropout, spatialDropout):
     layer = Dropout(dropout)(layer)
     output_layer = Dense(6, activation='sigmoid')(layer)
     model = Model(inputs=input_layer, outputs=output_layer)
-    model.compile(loss='binary_crossentropy', optimizer=Nadam(clipnorm=0.7), metrics=['acc'])
+    model.compile(loss='binary_crossentropy', optimizer=Nadam(), metrics=['acc'])
     return model
 
 
@@ -203,8 +207,8 @@ def run_one_fold(fold):
 
     # get embedding lookup table
     embedding_dim = 300
-    # embedding_path = '../data/input/glove_dir/glove.840B.300d.txt'
-    embedding_path = '../data/input/fasttext_dir/fasttext.300d.txt'
+    embedding_path = '../data/input/glove_dir/glove.840B.300d.txt'
+    # embedding_path = '../data/input/fasttext_dir/fasttext.300d.txt'
     embedding_lookup_table = get_embedding_lookup_table(word_index, embedding_path, embedding_dim)
 
     # read in fold data
